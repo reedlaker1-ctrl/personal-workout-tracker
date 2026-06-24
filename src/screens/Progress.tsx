@@ -25,25 +25,10 @@ export function Progress({ unit, splitId, onOpenMetric, onOpenExercise }: Props)
         <h1 className="screen-title">Progress</h1>
       </div>
 
-      <div className="row" style={{ marginBottom: 18 }}>
-        <button
-          className={`btn${seg === 'exercises' ? ' btn-accent' : ''}`}
-          onClick={() => setSeg('exercises')}
-        >
-          Exercises
-        </button>
-        <button
-          className={`btn${seg === 'metrics' ? ' btn-accent' : ''}`}
-          onClick={() => setSeg('metrics')}
-        >
-          Metrics
-        </button>
-        <button
-          className={`btn${seg === 'photos' ? ' btn-accent' : ''}`}
-          onClick={() => setSeg('photos')}
-        >
-          Photos
-        </button>
+      <div className="seg-tabs">
+        <button className={`seg-tab${seg === 'exercises' ? ' active' : ''}`} onClick={() => setSeg('exercises')}>Exercises</button>
+        <button className={`seg-tab${seg === 'metrics' ? ' active' : ''}`} onClick={() => setSeg('metrics')}>Metrics</button>
+        <button className={`seg-tab${seg === 'photos' ? ' active' : ''}`} onClick={() => setSeg('photos')}>Photos</button>
       </div>
 
       {seg === 'exercises' && (

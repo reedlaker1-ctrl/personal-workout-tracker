@@ -16,12 +16,15 @@ export function Settings({ splitId, unit, onClose }: Props) {
         {splits.map((s) => (
           <button
             key={s.id}
-            className={`day-card${s.id === splitId ? ' done' : ''}`}
-            style={{ padding: '16px 18px', fontSize: 17, marginBottom: 8 }}
+            className={`day-card${s.id === splitId ? ' selected' : ''}`}
+            style={{ padding: '16px 18px', marginBottom: 8 }}
             onClick={() => setSetting('currentSplitId', s.id)}
           >
-            <span>{s.name}</span>
-            <span className="chev">{s.id === splitId ? '✓' : ''}</span>
+            <span>
+              <div className="day-card-name">{s.name}</div>
+              <div className="day-card-sub">{s.days.length} days</div>
+            </span>
+            <span className="chev">{s.id === splitId ? '✓' : '›'}</span>
           </button>
         ))}
       </div>

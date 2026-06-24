@@ -45,14 +45,25 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
 
   const today = todayISO()
   const logsFor = (name: string) => logs.filter((l) => l.exerciseKey === name)
+
   const todayLog = (name: string): WorkoutLog | undefined =>
     logsFor(name)
       .filter((l) => l.date === today)
       .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
+
   const priorLog = (name: string): WorkoutLog | undefined =>
     logsFor(name)
       .filter((l) => l.date < today)
       .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
+
+  const priorMax = (name: string): number | undefined => {
+    const priors = logsFor(name).filter((l) => l.date < today)
+    if (priors.length === 0) return undefined
+    return Math.max(...priors.map((l) => l.weight))
+  }
+
+  const doneCount = items.filter((it) => !!todayLog(it.name)).length
+  const isComplete = doneCount > 0 && doneCount === items.length
 
   if (!day) {
     return (
@@ -70,11 +81,22 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
       <div className="screen-header">
         <button className="icon-back" onClick={onBack} aria-label="Back">‹</button>
         <h1 className="screen-title">{day.name}</h1>
+        {doneCount > 0 && (
+          <span className="done-counter">{doneCount}/{items.length}</span>
+        )}
       </div>
+
+      {isComplete && (
+        <div className="complete-banner">
+          🎉 All done — great work!
+        </div>
+      )}
 
       {items.map((it) => {
         const t = todayLog(it.name)
         const p = priorLog(it.name)
+        const max = priorMax(it.name)
+        const isPR = t != null && (max == null || t.weight > max)
         return (
           <button
             key={it.name + (it.customId ?? '')}
@@ -87,20 +109,22 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
               {t ? (
                 <div className="ex-today">Today · {num(t.weight)} {unit}</div>
               ) : p ? (
-                <div className="ex-prior">
-                  Last: {num(p.weight)} {unit} · {relativeDate(p.date)}
-                </div>
+                <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
               ) : (
                 <div className="ex-prior">No history yet</div>
               )}
             </span>
-            {t && <span className="ex-weight">{num(t.weight)}</span>}
+            {t && (
+              isPR
+                ? <span className="pr-badge">PR</span>
+                : <span className="ex-weight">{num(t.weight)}</span>
+            )}
           </button>
         )
       })}
 
-      <button className="btn btn-full fab-row" onClick={() => setAdding(true)}>
-        + Add workout
+      <button className="btn btn-ghost btn-full fab-row" onClick={() => setAdding(true)}>
+        + Add exercise
       </button>
 
       {editing && (
@@ -109,6 +133,7 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
           unit={unit}
           dayId={dayId}
           existing={todayLog(editing.name)}
+          prior={priorLog(editing.name)}
           onClose={() => setEditing(null)}
         />
       )}
@@ -122,26 +147,36 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
 
 const PLATE_WEIGHTS = [45, 35, 25, 10, 5, 2.5]
 const BAR_WEIGHT = 45
+const ADJUSTMENTS = [-10, -5, +5, +10]
 
 function LogSheet({
   item,
   unit,
   dayId,
   existing,
+  prior,
   onClose,
 }: {
   item: Item
   unit: Unit
   dayId: string
   existing?: WorkoutLog
+  prior?: WorkoutLog
   onClose: () => void
 }) {
   const [mode, setMode] = useState<'weight' | 'plates'>('weight')
-  const [val, setVal] = useState(existing ? num(existing.weight) : '')
+  const [val, setVal] = useState(
+    existing ? num(existing.weight) : prior ? num(prior.weight) : ''
+  )
   const [counts, setCounts] = useState<Record<number, number>>({})
 
   const adjust = (w: number, delta: number) =>
     setCounts((prev) => ({ ...prev, [w]: Math.max(0, (prev[w] ?? 0) + delta) }))
+
+  const quickAdjust = (delta: number) => {
+    const current = parseFloat(val) || 0
+    setVal(num(Math.max(0, current + delta)))
+  }
 
   const platesPerSide = PLATE_WEIGHTS.reduce((sum, w) => sum + w * (counts[w] ?? 0), 0)
   const calcWeight = BAR_WEIGHT + platesPerSide * 2
@@ -157,61 +192,49 @@ function LogSheet({
   return (
     <Sheet title={item.name} onClose={onClose}>
       <div className="mode-toggle">
-        <button
-          type="button"
-          className={`mode-btn${mode === 'weight' ? ' active' : ''}`}
-          onClick={() => setMode('weight')}
-        >
+        <button type="button" className={`mode-btn${mode === 'weight' ? ' active' : ''}`} onClick={() => setMode('weight')}>
           Weight
         </button>
-        <button
-          type="button"
-          className={`mode-btn${mode === 'plates' ? ' active' : ''}`}
-          onClick={() => setMode('plates')}
-        >
+        <button type="button" className={`mode-btn${mode === 'plates' ? ' active' : ''}`} onClick={() => setMode('plates')}>
           Plates
         </button>
       </div>
 
       {mode === 'weight' ? (
-        <input
-          className="field"
-          type="number"
-          inputMode="decimal"
-          autoFocus
-          placeholder={`Weight (${unit})`}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && save()}
-        />
+        <>
+          <input
+            className="field"
+            type="number"
+            inputMode="decimal"
+            autoFocus
+            placeholder={`Weight (${unit})`}
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+          />
+          <div className="weight-adjusters">
+            {ADJUSTMENTS.map((d) => (
+              <button key={d} type="button" className="adj-btn" onClick={() => quickAdjust(d)}>
+                {d > 0 ? '+' : ''}{d}
+              </button>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           <div className="plate-calc">
             {PLATE_WEIGHTS.map((w) => {
               const count = counts[w] ?? 0
-              const sideTotal = w * count
               return (
                 <div key={w} className="plate-row">
-                  <span className="plate-label">{w} lb</span>
+                  <span className="plate-label">{w}</span>
                   <div className="plate-stepper">
-                    <button
-                      type="button"
-                      className="stepper-btn"
-                      onClick={() => adjust(w, -1)}
-                    >
-                      −
-                    </button>
+                    <button type="button" className="stepper-btn" onClick={() => adjust(w, -1)}>−</button>
                     <span className="stepper-count">{count}</span>
-                    <button
-                      type="button"
-                      className="stepper-btn"
-                      onClick={() => adjust(w, 1)}
-                    >
-                      +
-                    </button>
+                    <button type="button" className="stepper-btn" onClick={() => adjust(w, 1)}>+</button>
                   </div>
                   <span className={`plate-side-total${count > 0 ? ' has-weight' : ''}`}>
-                    {count > 0 ? num(sideTotal) : '—'}
+                    {count > 0 ? num(w * count) : '—'}
                   </span>
                 </div>
               )
@@ -220,9 +243,7 @@ function LogSheet({
           <div className="plate-total">
             {num(calcWeight)} {unit}
             <span className="plate-breakdown">
-              {hasPlates
-                ? `${BAR_WEIGHT} bar + ${num(platesPerSide)} × 2 per side`
-                : 'bar only'}
+              {hasPlates ? `${BAR_WEIGHT} bar + ${num(platesPerSide)} × 2/side` : 'bar only'}
             </span>
           </div>
         </>
@@ -230,14 +251,7 @@ function LogSheet({
 
       <div className="row">
         {existing && (
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={async () => {
-              await deleteTodayLog(item.name)
-              onClose()
-            }}
-          >
+          <button type="button" className="btn btn-outline" onClick={async () => { await deleteTodayLog(item.name); onClose() }}>
             Clear
           </button>
         )}
@@ -246,17 +260,11 @@ function LogSheet({
           {mode === 'plates' && hasPlates ? ` · ${num(calcWeight)} ${unit}` : ''}
         </button>
       </div>
+
       {item.customId != null && (
-        <div style={{ textAlign: 'center', marginTop: 8 }}>
-          <button
-            type="button"
-            className="del-link"
-            onClick={async () => {
-              await removeCustomExercise(item.customId!)
-              onClose()
-            }}
-          >
-            Remove this exercise
+        <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <button type="button" className="del-link" onClick={async () => { await removeCustomExercise(item.customId!); onClose() }}>
+            Remove exercise
           </button>
         </div>
       )}
@@ -272,7 +280,7 @@ function AddSheet({ dayId, onClose }: { dayId: string; onClose: () => void }) {
     onClose()
   }
   return (
-    <Sheet title="Add workout" onClose={onClose}>
+    <Sheet title="Add exercise" onClose={onClose}>
       <input
         className="field"
         autoFocus
@@ -281,9 +289,7 @@ function AddSheet({ dayId, onClose }: { dayId: string; onClose: () => void }) {
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
-      <button className="btn btn-accent btn-full" onClick={save}>
-        Add
-      </button>
+      <button className="btn btn-accent btn-full" onClick={save}>Add</button>
     </Sheet>
   )
 }

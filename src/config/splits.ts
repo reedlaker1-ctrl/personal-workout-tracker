@@ -23,7 +23,7 @@ export interface Split {
 export const splits: Split[] = [
   {
     id: 'reed',
-    name: 'My Split',
+    name: 'Arnold',
     days: [
       {
         id: 'chest-back',

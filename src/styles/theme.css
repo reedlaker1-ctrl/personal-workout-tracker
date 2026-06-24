@@ -413,9 +413,9 @@ body.sheet-open .tabbar {
 
 .entry-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 4px;
+  gap: 12px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
 .entry-row:last-child {
@@ -423,10 +423,12 @@ body.sheet-open .tabbar {
 }
 .entry-val {
   font-weight: 700;
+  flex: none;
 }
 .entry-date {
   color: var(--text-dim);
   font-size: 13px;
+  flex: 1;
 }
 
 /* ── Photos ── */
@@ -484,6 +486,103 @@ body.sheet-open .tabbar {
 
 .fab-row {
   margin-top: 10px;
+}
+
+/* ── Completion banner ── */
+.complete-banner {
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid var(--good);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--good);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* ── Done counter in header ── */
+.done-counter {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  flex: none;
+}
+
+/* ── PR badge ── */
+.pr-badge {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 7px;
+  letter-spacing: 0.04em;
+  flex: none;
+  align-self: center;
+}
+
+/* ── Quick weight adjusters ── */
+.weight-adjusters {
+  display: flex;
+  gap: 8px;
+  margin-top: -4px;
+  margin-bottom: 14px;
+}
+.adj-btn {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: background 0.1s, color 0.1s;
+}
+.adj-btn:active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* ── Progress segment tabs ── */
+.seg-tabs {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 18px;
+}
+.seg-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  border-radius: 10px;
+  padding: 10px 6px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+.seg-tab.active {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Day card selected (Settings) and done subtitle ── */
+.day-card.selected {
+  border-color: var(--accent);
+  background: rgba(79, 140, 255, 0.06);
+}
+.day-card-sub.done {
+  color: var(--good);
+  font-weight: 600;
 }
 
 .del-link {

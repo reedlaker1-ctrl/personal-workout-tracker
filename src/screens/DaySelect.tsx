@@ -11,7 +11,7 @@ interface Props {
 function weekMonday(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  const offset = (date.getDay() + 6) % 7 // days since Monday
+  const offset = (date.getDay() + 6) % 7
   date.setDate(date.getDate() - offset)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -25,57 +25,61 @@ function prevMonday(mondayStr: string): string {
 function useWeekStreak(): number {
   const logs = useLiveQuery(() => db.logs.toArray(), []) ?? []
   const weekSet = new Set(logs.map((l) => weekMonday(l.date)))
-
   const today = todayISO()
   const curWeek = weekMonday(today)
   const lastWeek = prevMonday(curWeek)
-
   const start = weekSet.has(curWeek) ? curWeek : weekSet.has(lastWeek) ? lastWeek : null
   if (!start) return 0
-
   let streak = 0
   let check = start
-  while (weekSet.has(check)) {
-    streak++
-    check = prevMonday(check)
-  }
+  while (weekSet.has(check)) { streak++; check = prevMonday(check) }
   return streak
 }
 
 export function DaySelect({ splitId, onOpenDay, onOpenSettings }: Props) {
   const split = getSplit(splitId)
   const streak = useWeekStreak()
+  const today = todayISO()
+  const todayLogs = useLiveQuery(() => db.logs.where('date').equals(today).toArray(), [today]) ?? []
 
   return (
     <div className="screen">
       <div className="screen-header">
         <h1 className="screen-title">Workout</h1>
-        <button className="btn-icon" onClick={onOpenSettings} aria-label="Settings">
-          ⚙︎
-        </button>
+        <button className="btn-icon" onClick={onOpenSettings} aria-label="Settings">⚙︎</button>
       </div>
 
-      <button className="btn-ghost" onClick={onOpenSettings} style={{ padding: '0 0 14px' }}>
+      <button className="btn-ghost" onClick={onOpenSettings} style={{ padding: '0 0 16px' }}>
         {split ? split.name : 'No'} split ›
       </button>
 
       {streak > 0 && (
         <div className="streak-badge">
-          🔥 {streak} {streak === 1 ? 'week' : 'week'} streak
+          🔥 {streak} {streak === 1 ? 'week' : 'weeks'} streak
         </div>
       )}
 
       {!split && <div className="empty">No split configured.</div>}
 
-      {split?.days.map((d) => (
-        <button key={d.id} className="day-card" onClick={() => onOpenDay(d.id)}>
-          <span>
-            <div className="day-card-name">{d.name}</div>
-            <div className="day-card-sub">{d.exercises.length} exercises</div>
-          </span>
-          <span className="chev">›</span>
-        </button>
-      ))}
+      {split?.days.map((d) => {
+        const done = d.exercises.filter((ex) =>
+          todayLogs.some((l) => l.exerciseKey === ex)
+        ).length
+        const total = d.exercises.length
+        const allDone = done === total && done > 0
+
+        return (
+          <button key={d.id} className="day-card" onClick={() => onOpenDay(d.id)}>
+            <span>
+              <div className="day-card-name">{d.name}</div>
+              <div className={`day-card-sub${allDone ? ' done' : ''}`}>
+                {done > 0 ? `${done}/${total} done today` : `${total} exercises`}
+              </div>
+            </span>
+            <span className="chev">›</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
