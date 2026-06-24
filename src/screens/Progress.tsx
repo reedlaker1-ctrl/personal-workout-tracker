@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addMetric, type Unit } from '../db/db'
+import { getSplit } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
 import { Photos } from './Photos'
@@ -8,11 +9,15 @@ import { num, shortDate } from '../util/format'
 
 interface Props {
   unit: Unit
+  splitId: string
   onOpenMetric: (id: number) => void
+  onOpenExercise: (key: string) => void
 }
 
-export function Progress({ unit, onOpenMetric }: Props) {
-  const [seg, setSeg] = useState<'metrics' | 'photos'>('metrics')
+type Seg = 'exercises' | 'metrics' | 'photos'
+
+export function Progress({ unit, splitId, onOpenMetric, onOpenExercise }: Props) {
+  const [seg, setSeg] = useState<Seg>('exercises')
 
   return (
     <div className="screen">
@@ -21,6 +26,12 @@ export function Progress({ unit, onOpenMetric }: Props) {
       </div>
 
       <div className="row" style={{ marginBottom: 18 }}>
+        <button
+          className={`btn${seg === 'exercises' ? ' btn-accent' : ''}`}
+          onClick={() => setSeg('exercises')}
+        >
+          Exercises
+        </button>
         <button
           className={`btn${seg === 'metrics' ? ' btn-accent' : ''}`}
           onClick={() => setSeg('metrics')}
@@ -35,16 +46,74 @@ export function Progress({ unit, onOpenMetric }: Props) {
         </button>
       </div>
 
-      {seg === 'metrics' ? (
-        <MetricsList unit={unit} onOpenMetric={onOpenMetric} />
-      ) : (
-        <Photos />
+      {seg === 'exercises' && (
+        <ExercisesList splitId={splitId} unit={unit} onOpenExercise={onOpenExercise} />
       )}
+      {seg === 'metrics' && (
+        <MetricsList unit={unit} onOpenMetric={onOpenMetric} />
+      )}
+      {seg === 'photos' && <Photos />}
     </div>
   )
 }
 
-function MetricsList({ unit, onOpenMetric }: Props) {
+function ExercisesList({
+  splitId,
+  unit,
+  onOpenExercise,
+}: {
+  splitId: string
+  unit: Unit
+  onOpenExercise: (key: string) => void
+}) {
+  const split = getSplit(splitId)
+  const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
+
+  if (!split) return <div className="empty">No split configured.</div>
+
+  return (
+    <>
+      {split.days.map((day) => (
+        <div key={day.id}>
+          <div className="ex-group-header">{day.name}</div>
+          {day.exercises.map((name) => {
+            const logs = allLogs
+              .filter((l) => l.exerciseKey === name)
+              .sort((a, b) => (a.date < b.date ? -1 : 1))
+            const points = logs.map((l) => ({ date: l.date, value: l.weight }))
+            const latest = logs[logs.length - 1]
+
+            return (
+              <button key={name} className="metric-card" onClick={() => onOpenExercise(name)}>
+                <span className="metric-info">
+                  <div className="metric-name">{name}</div>
+                  <div className="metric-latest">
+                    {latest
+                      ? `${num(latest.weight)} ${unit} · ${shortDate(latest.date)}`
+                      : 'No logs yet'}
+                  </div>
+                </span>
+                {points.length > 0 && (
+                  <span style={{ width: 90, flex: 'none' }}>
+                    <LineChart points={points} height={40} sparkline />
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      ))}
+    </>
+  )
+}
+
+function MetricsList({
+  unit,
+  onOpenMetric,
+}: {
+  unit: Unit
+  onOpenMetric: (id: number) => void
+}) {
   const metrics = useLiveQuery(() => db.metrics.toArray(), []) ?? []
   const entries = useLiveQuery(() => db.metricEntries.toArray(), []) ?? []
   const [adding, setAdding] = useState(false)

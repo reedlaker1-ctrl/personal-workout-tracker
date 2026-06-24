@@ -7,15 +7,16 @@ import { DaySelect } from './screens/DaySelect'
 import { Checklist } from './screens/Checklist'
 import { Progress } from './screens/Progress'
 import { MetricDetail } from './screens/MetricDetail'
+import { ExerciseDetail } from './screens/ExerciseDetail'
 import { Settings } from './screens/Settings'
 
 export default function App() {
   const [tab, setTab] = useState<'workout' | 'progress'>('workout')
   const [dayId, setDayId] = useState<string | null>(null)
   const [metricId, setMetricId] = useState<number | null>(null)
+  const [exerciseKey, setExerciseKey] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
-  // Settings are reactive — pulled live from the DB.
   const settings = useLiveQuery(() => db.settings.toArray(), [])
   const splitId =
     settings?.find((s) => s.key === 'currentSplitId')?.value ?? DEFAULT_SPLIT_ID
@@ -40,22 +41,32 @@ export default function App() {
         ))}
 
       {tab === 'progress' &&
-        (metricId != null ? (
+        (exerciseKey != null ? (
+          <ExerciseDetail
+            exerciseKey={exerciseKey}
+            unit={unit}
+            onBack={() => setExerciseKey(null)}
+          />
+        ) : metricId != null ? (
           <MetricDetail
             metricId={metricId}
             unit={unit}
             onBack={() => setMetricId(null)}
           />
         ) : (
-          <Progress unit={unit} onOpenMetric={setMetricId} />
+          <Progress
+            unit={unit}
+            splitId={splitId}
+            onOpenMetric={setMetricId}
+            onOpenExercise={setExerciseKey}
+          />
         ))}
 
       <TabBar
         tab={tab}
         onChange={(t) => {
           setTab(t)
-          // Reset sub-navigation when switching tabs.
-          if (t === 'workout') setMetricId(null)
+          if (t === 'workout') { setMetricId(null); setExerciseKey(null) }
           if (t === 'progress') setDayId(null)
         }}
       />

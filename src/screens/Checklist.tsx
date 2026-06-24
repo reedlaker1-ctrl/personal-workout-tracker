@@ -120,6 +120,9 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
   )
 }
 
+const PLATE_WEIGHTS = [45, 35, 25, 10, 5, 2.5]
+const BAR_WEIGHT = 45
+
 function LogSheet({
   item,
   unit,
@@ -133,27 +136,85 @@ function LogSheet({
   existing?: WorkoutLog
   onClose: () => void
 }) {
+  const [mode, setMode] = useState<'weight' | 'plates'>('weight')
   const [val, setVal] = useState(existing ? num(existing.weight) : '')
+  const [plateWeight, setPlateWeight] = useState(45)
+  const [plateCount, setPlateCount] = useState(0)
+
+  const calcWeight = BAR_WEIGHT + plateWeight * plateCount * 2
 
   const save = async () => {
-    const w = parseFloat(val)
-    if (!isFinite(w)) return
+    const w = mode === 'plates' ? calcWeight : parseFloat(val)
+    if (!isFinite(w) || w <= 0) return
     await logWeight(item.name, dayId, w)
     onClose()
   }
 
   return (
     <Sheet title={item.name} onClose={onClose}>
-      <input
-        className="field"
-        type="number"
-        inputMode="decimal"
-        autoFocus
-        placeholder={`Weight (${unit})`}
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && save()}
-      />
+      <div className="mode-toggle">
+        <button
+          className={`mode-btn${mode === 'weight' ? ' active' : ''}`}
+          onClick={() => setMode('weight')}
+        >
+          Weight
+        </button>
+        <button
+          className={`mode-btn${mode === 'plates' ? ' active' : ''}`}
+          onClick={() => setMode('plates')}
+        >
+          Plates
+        </button>
+      </div>
+
+      {mode === 'weight' ? (
+        <input
+          className="field"
+          type="number"
+          inputMode="decimal"
+          autoFocus
+          placeholder={`Weight (${unit})`}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+        />
+      ) : (
+        <>
+          <div className="plate-chips">
+            {PLATE_WEIGHTS.map((w) => (
+              <button
+                key={w}
+                className={`plate-chip${plateWeight === w ? ' active' : ''}`}
+                onClick={() => setPlateWeight(w)}
+              >
+                {w} lb
+              </button>
+            ))}
+          </div>
+          <div className="plate-stepper">
+            <button
+              className="stepper-btn"
+              onClick={() => setPlateCount(Math.max(0, plateCount - 1))}
+            >
+              −
+            </button>
+            <span className="stepper-count">{plateCount} per side</span>
+            <button
+              className="stepper-btn"
+              onClick={() => setPlateCount(plateCount + 1)}
+            >
+              +
+            </button>
+          </div>
+          <div className="plate-total">
+            {num(calcWeight)} {unit}
+            <span className="plate-breakdown">
+              {BAR_WEIGHT} bar + {plateWeight}×{plateCount}×2
+            </span>
+          </div>
+        </>
+      )}
+
       <div className="row">
         {existing && (
           <button
@@ -168,6 +229,7 @@ function LogSheet({
         )}
         <button className="btn btn-accent" onClick={save}>
           {existing ? 'Update' : 'Save'}
+          {mode === 'plates' && plateCount > 0 ? ` · ${num(calcWeight)} ${unit}` : ''}
         </button>
       </div>
       {item.customId != null && (
