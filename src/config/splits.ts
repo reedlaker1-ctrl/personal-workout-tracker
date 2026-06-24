@@ -22,45 +22,45 @@ export interface Split {
 
 export const splits: Split[] = [
   {
-    id: 'arnold',
-    name: 'Arnold',
+    id: 'reed',
+    name: 'My Split',
     days: [
-      {
-        id: 'legs',
-        name: 'Legs',
-        exercises: [
-          'Squat',
-          'Leg Press',
-          'Romanian Deadlift',
-          'Leg Extension',
-          'Leg Curl',
-          'Standing Calf Raise',
-        ],
-      },
-      {
-        id: 'arms-shoulders',
-        name: 'Arms & Shoulders',
-        exercises: [
-          'Overhead Press',
-          'Lateral Raise',
-          'Rear Delt Fly',
-          'Barbell Curl',
-          'Incline Dumbbell Curl',
-          'Tricep Pushdown',
-          'Overhead Tricep Extension',
-        ],
-      },
       {
         id: 'chest-back',
         name: 'Chest & Back',
         exercises: [
-          'Bench Press',
-          'Incline Dumbbell Press',
-          'Cable Fly',
-          'Pull-Up',
+          'Barbell Bench Press',
+          'Incline Bench Press',
           'Barbell Row',
           'Lat Pulldown',
-          'Seated Cable Row',
+          'Chest-Supported Row',
+          'Pull-Up',
+          'Pec Deck',
+        ],
+      },
+      {
+        id: 'shoulders-arms',
+        name: 'Shoulders & Arms',
+        exercises: [
+          'Overhead Press',
+          'Lateral Raise',
+          'Cable Face Pull',
+          'Bicep Curl',
+          'Hammer Curl',
+          'Tricep Extension',
+          'Overhead Tricep Extension',
+        ],
+      },
+      {
+        id: 'legs',
+        name: 'Legs',
+        exercises: [
+          'Barbell Squat',
+          'Leg Press',
+          'Romanian Deadlift',
+          'Leg Extension',
+          'Hamstring Curl',
+          'Calf Raise',
         ],
       },
     ],
