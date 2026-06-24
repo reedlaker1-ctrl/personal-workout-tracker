@@ -138,10 +138,14 @@ function LogSheet({
 }) {
   const [mode, setMode] = useState<'weight' | 'plates'>('weight')
   const [val, setVal] = useState(existing ? num(existing.weight) : '')
-  const [plateWeight, setPlateWeight] = useState(45)
-  const [plateCount, setPlateCount] = useState(0)
+  const [counts, setCounts] = useState<Record<number, number>>({})
 
-  const calcWeight = BAR_WEIGHT + plateWeight * plateCount * 2
+  const adjust = (w: number, delta: number) =>
+    setCounts((prev) => ({ ...prev, [w]: Math.max(0, (prev[w] ?? 0) + delta) }))
+
+  const platesPerSide = PLATE_WEIGHTS.reduce((sum, w) => sum + w * (counts[w] ?? 0), 0)
+  const calcWeight = BAR_WEIGHT + platesPerSide * 2
+  const hasPlates = platesPerSide > 0
 
   const save = async () => {
     const w = mode === 'plates' ? calcWeight : parseFloat(val)
@@ -154,12 +158,14 @@ function LogSheet({
     <Sheet title={item.name} onClose={onClose}>
       <div className="mode-toggle">
         <button
+          type="button"
           className={`mode-btn${mode === 'weight' ? ' active' : ''}`}
           onClick={() => setMode('weight')}
         >
           Weight
         </button>
         <button
+          type="button"
           className={`mode-btn${mode === 'plates' ? ' active' : ''}`}
           onClick={() => setMode('plates')}
         >
@@ -180,36 +186,43 @@ function LogSheet({
         />
       ) : (
         <>
-          <div className="plate-chips">
-            {PLATE_WEIGHTS.map((w) => (
-              <button
-                key={w}
-                className={`plate-chip${plateWeight === w ? ' active' : ''}`}
-                onClick={() => setPlateWeight(w)}
-              >
-                {w} lb
-              </button>
-            ))}
-          </div>
-          <div className="plate-stepper">
-            <button
-              className="stepper-btn"
-              onClick={() => setPlateCount(Math.max(0, plateCount - 1))}
-            >
-              −
-            </button>
-            <span className="stepper-count">{plateCount} per side</span>
-            <button
-              className="stepper-btn"
-              onClick={() => setPlateCount(plateCount + 1)}
-            >
-              +
-            </button>
+          <div className="plate-calc">
+            {PLATE_WEIGHTS.map((w) => {
+              const count = counts[w] ?? 0
+              const sideTotal = w * count
+              return (
+                <div key={w} className="plate-row">
+                  <span className="plate-label">{w} lb</span>
+                  <div className="plate-stepper">
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={() => adjust(w, -1)}
+                    >
+                      −
+                    </button>
+                    <span className="stepper-count">{count}</span>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={() => adjust(w, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className={`plate-side-total${count > 0 ? ' has-weight' : ''}`}>
+                    {count > 0 ? num(sideTotal) : '—'}
+                  </span>
+                </div>
+              )
+            })}
           </div>
           <div className="plate-total">
             {num(calcWeight)} {unit}
             <span className="plate-breakdown">
-              {BAR_WEIGHT} bar + {plateWeight}×{plateCount}×2
+              {hasPlates
+                ? `${BAR_WEIGHT} bar + ${num(platesPerSide)} × 2 per side`
+                : 'bar only'}
             </span>
           </div>
         </>
@@ -218,7 +231,8 @@ function LogSheet({
       <div className="row">
         {existing && (
           <button
-            className="btn"
+            type="button"
+            className="btn btn-outline"
             onClick={async () => {
               await deleteTodayLog(item.name)
               onClose()
@@ -227,14 +241,15 @@ function LogSheet({
             Clear
           </button>
         )}
-        <button className="btn btn-accent" onClick={save}>
+        <button type="button" className="btn btn-accent" onClick={save}>
           {existing ? 'Update' : 'Save'}
-          {mode === 'plates' && plateCount > 0 ? ` · ${num(calcWeight)} ${unit}` : ''}
+          {mode === 'plates' && hasPlates ? ` · ${num(calcWeight)} ${unit}` : ''}
         </button>
       </div>
       {item.customId != null && (
-        <div style={{ textAlign: 'center', marginTop: 6 }}>
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
           <button
+            type="button"
             className="del-link"
             onClick={async () => {
               await removeCustomExercise(item.customId!)

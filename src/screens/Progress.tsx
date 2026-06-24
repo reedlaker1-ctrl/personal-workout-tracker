@@ -73,9 +73,11 @@ function ExercisesList({
 
   return (
     <>
-      {split.days.map((day) => (
+      {split.days.map((day, di) => (
         <div key={day.id}>
-          <div className="ex-group-header">{day.name}</div>
+          <div className="ex-group-header" style={di === 0 ? { marginTop: 0 } : undefined}>
+            {day.name}
+          </div>
           {day.exercises.map((name) => {
             const logs = allLogs
               .filter((l) => l.exerciseKey === name)

@@ -1,13 +1,17 @@
 :root {
-  --bg: #0a0a0c;
-  --surface: #16161a;
-  --surface-2: #1f1f25;
-  --border: #2a2a31;
-  --text: #f2f2f5;
-  --text-dim: #8b8b96;
+  --bg: #09090c;
+  --surface: #141418;
+  --surface-2: #1c1c22;
+  --surface-3: #232329;
+  --border: #28282f;
+  --border-light: #32323a;
+  --text: #f0f0f3;
+  --text-dim: #7a7a85;
+  --text-faint: #4a4a54;
   --accent: #4f8cff;
-  --accent-dim: #29406b;
+  --accent-dim: #1e3160;
   --good: #34d399;
+  --good-dim: #0d3325;
   --danger: #f87171;
   --radius: 16px;
   --tab-h: 64px;
@@ -57,23 +61,24 @@ button {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: calc(env(safe-area-inset-top) + 8px) 16px
-    calc(var(--tab-h) + env(safe-area-inset-bottom) + 16px);
+  padding: calc(env(safe-area-inset-top) + 12px) 16px
+    calc(var(--tab-h) + env(safe-area-inset-bottom) + 20px);
 }
 
 .screen-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 4px 0 20px;
+  margin: 4px 0 22px;
 }
 
 .screen-title {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   margin: 0;
   flex: 1;
+  min-width: 0;
 }
 
 .subtle {
@@ -84,20 +89,26 @@ button {
 /* ── Buttons ── */
 .btn {
   border: none;
-  border-radius: 12px;
+  border-radius: 13px;
   background: var(--surface-2);
   color: var(--text);
-  padding: 14px 16px;
+  padding: 15px 16px;
   font-weight: 600;
   font-size: 16px;
-  transition: transform 0.08s ease, background 0.15s ease;
+  transition: opacity 0.12s ease, transform 0.08s ease;
 }
 .btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 .btn-accent {
   background: var(--accent);
   color: #fff;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-dim);
 }
 .btn-ghost {
   background: transparent;
@@ -116,16 +127,17 @@ button {
   line-height: 1;
 }
 .icon-back {
-  background: var(--surface);
+  background: var(--surface-2);
   border-radius: 50%;
   width: 38px;
   height: 38px;
   display: grid;
   place-items: center;
-  font-size: 20px;
-  color: var(--text);
+  font-size: 22px;
+  color: var(--text-dim);
   border: none;
   flex: none;
+  line-height: 1;
 }
 
 /* ── Cards / list ── */
@@ -145,15 +157,29 @@ button {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px 20px;
+  padding: 20px;
   margin-bottom: 12px;
-  font-size: 20px;
-  font-weight: 700;
   color: var(--text);
+  transition: border-color 0.15s;
+}
+.day-card:active {
+  border-color: var(--border-light);
+}
+.day-card-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.day-card-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  font-weight: 500;
 }
 .day-card .chev {
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-size: 22px;
+  flex: none;
 }
 
 /* ── Exercise rows ── */
@@ -161,31 +187,37 @@ button {
   display: flex;
   align-items: center;
   gap: 14px;
+  width: 100%;
+  text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px 16px;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
 }
 .ex-row.done {
-  border-color: var(--accent-dim);
+  border-color: var(--good);
+  background: rgba(52, 211, 153, 0.05);
 }
 .ex-check {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border-light);
   display: grid;
   place-items: center;
   flex: none;
   color: transparent;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 900;
+  transition: background 0.15s, border-color 0.15s;
 }
 .ex-check.on {
   background: var(--good);
   border-color: var(--good);
-  color: #06281c;
+  color: #04201a;
 }
 .ex-main {
   flex: 1;
@@ -193,7 +225,11 @@ button {
 }
 .ex-name {
   font-weight: 600;
-  font-size: 17px;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ex-prior {
   color: var(--text-dim);
@@ -214,10 +250,14 @@ button {
 }
 
 /* ── Modal / sheet ── */
+body.sheet-open .tabbar {
+  display: none;
+}
+
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: flex-end;
   z-index: 100;
@@ -226,39 +266,47 @@ button {
 .sheet {
   background: var(--surface);
   width: 100%;
-  border-radius: 22px 22px 0 0;
-  padding: 22px 18px calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px);
-  border-top: 1px solid var(--border);
-  animation: slideup 0.2s ease;
+  border-radius: 24px 24px 0 0;
+  padding: 10px 18px calc(env(safe-area-inset-bottom) + 28px);
+  border-top: 1px solid var(--border-light);
+  animation: slideup 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  margin: 0 auto 18px;
 }
 .sheet h3 {
-  margin: 0 0 16px;
+  margin: 0 0 18px;
   font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 @keyframes fade {
-  from {
-    opacity: 0;
-  }
+  from { opacity: 0; }
 }
 @keyframes slideup {
-  from {
-    transform: translateY(40px);
-  }
+  from { transform: translateY(50px); opacity: 0.6; }
 }
 
 .field {
   width: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 13px;
   color: var(--text);
-  padding: 14px 16px;
+  padding: 15px 16px;
   margin-bottom: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.14);
 }
+
 .row {
   display: flex;
   gap: 10px;
@@ -272,6 +320,7 @@ button {
   color: var(--text-dim);
   padding: 48px 16px;
   font-size: 15px;
+  line-height: 1.5;
 }
 
 /* ── Tab bar ── */
@@ -283,8 +332,9 @@ button {
   height: calc(var(--tab-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   display: flex;
-  background: rgba(16, 16, 20, 0.85);
-  backdrop-filter: blur(18px);
+  background: rgba(12, 12, 16, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
   z-index: 40;
 }
@@ -297,15 +347,26 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   font-size: 11px;
   font-weight: 600;
+  position: relative;
+  transition: color 0.15s;
 }
 .tab.active {
   color: var(--accent);
 }
+.tab.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 28px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 0 0 2px 2px;
+}
 .tab .tab-icon {
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1;
 }
 
@@ -320,15 +381,21 @@ button {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
   color: var(--text);
+  transition: border-color 0.15s;
 }
 .metric-info {
   flex: 1;
+  min-width: 0;
 }
 .metric-name {
   font-weight: 600;
-  font-size: 17px;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .metric-latest {
   color: var(--text-dim);
@@ -396,7 +463,7 @@ button {
 .photo-view-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(0, 0, 0, 0.95);
   z-index: 60;
   display: flex;
   flex-direction: column;
@@ -416,7 +483,7 @@ button {
 }
 
 .fab-row {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .del-link {
@@ -431,7 +498,7 @@ button {
 .mode-toggle {
   display: flex;
   background: var(--surface-2);
-  border-radius: 10px;
+  border-radius: 11px;
   padding: 3px;
   gap: 3px;
   margin-bottom: 16px;
@@ -441,78 +508,98 @@ button {
   background: transparent;
   border: none;
   color: var(--text-dim);
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 9px;
+  padding: 9px;
   font-weight: 600;
   font-size: 15px;
   transition: background 0.15s, color 0.15s;
 }
 .mode-btn.active {
-  background: var(--surface);
+  background: var(--surface-3);
   color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
 /* ── Plate calculator ── */
-.plate-chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.plate-calc {
+  background: var(--surface-2);
+  border-radius: 13px;
+  padding: 2px 14px;
   margin-bottom: 14px;
 }
-.plate-chip {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--text-dim);
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+.plate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
 }
-.plate-chip.active {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
+.plate-row:last-child {
+  border-bottom: none;
+}
+.plate-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  width: 54px;
+  flex: none;
 }
 .plate-stepper {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 20px;
-  margin-bottom: 14px;
+  gap: 10px;
+  flex: 1;
 }
 .stepper-btn {
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 26px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-light);
+  font-size: 20px;
   color: var(--text);
   display: grid;
   place-items: center;
   line-height: 1;
+  flex: none;
+  transition: opacity 0.1s;
+}
+.stepper-btn:active {
+  opacity: 0.6;
 }
 .stepper-count {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
-  min-width: 90px;
+  min-width: 22px;
   text-align: center;
   color: var(--text);
 }
+.plate-side-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  width: 44px;
+  text-align: right;
+  flex: none;
+}
+.plate-side-total.has-weight {
+  color: var(--accent);
+}
 .plate-total {
   text-align: center;
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: 16px;
+  letter-spacing: -0.03em;
+  margin: 14px 0 16px;
+  color: var(--text);
 }
 .plate-breakdown {
   display: block;
   font-size: 13px;
   font-weight: 400;
   color: var(--text-dim);
-  margin-top: 3px;
+  margin-top: 4px;
+  letter-spacing: 0;
 }
 
 /* ── Streak badge ── */
@@ -523,7 +610,7 @@ button {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 5px 14px;
+  padding: 6px 14px;
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
@@ -532,10 +619,10 @@ button {
 
 /* ── Exercise group headers (Progress > Exercises) ── */
 .ex-group-header {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-dim);
-  margin: 18px 0 8px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 20px 0 8px;
 }

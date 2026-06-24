@@ -6,8 +6,6 @@ interface Props {
   children: ReactNode
 }
 
-/** A bottom sheet modal. Tap backdrop to dismiss.
- *  Uses visualViewport to stay above the iOS software keyboard. */
 export function Sheet({ title, onClose, children }: Props) {
   const [keyboardOffset, setKeyboardOffset] = useState(0)
 
@@ -16,6 +14,11 @@ export function Sheet({ title, onClose, children }: Props) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  useEffect(() => {
+    document.body.classList.add('sheet-open')
+    return () => document.body.classList.remove('sheet-open')
+  }, [])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -39,6 +42,7 @@ export function Sheet({ title, onClose, children }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{ marginBottom: keyboardOffset }}
       >
+        <div className="sheet-handle" />
         <h3>{title}</h3>
         {children}
       </div>

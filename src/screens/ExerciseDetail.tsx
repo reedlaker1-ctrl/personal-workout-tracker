@@ -26,7 +26,7 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
         <button className="icon-back" onClick={onBack} aria-label="Back">
           ‹
         </button>
-        <h1 className="screen-title" style={{ fontSize: 22 }}>
+        <h1 className="screen-title" style={{ fontSize: 20, letterSpacing: '-0.01em' }}>
           {exerciseKey}
         </h1>
       </div>

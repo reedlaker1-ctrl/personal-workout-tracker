@@ -69,7 +69,10 @@ export function DaySelect({ splitId, onOpenDay, onOpenSettings }: Props) {
 
       {split?.days.map((d) => (
         <button key={d.id} className="day-card" onClick={() => onOpenDay(d.id)}>
-          <span>{d.name}</span>
+          <span>
+            <div className="day-card-name">{d.name}</div>
+            <div className="day-card-sub">{d.exercises.length} exercises</div>
+          </span>
           <span className="chev">›</span>
         </button>
       ))}
