@@ -175,3 +175,26 @@ export async function addPhoto(blob: Blob, caption?: string): Promise<void> {
 export async function deletePhoto(id: number): Promise<void> {
   await db.photos.delete(id)
 }
+
+// ── Export ──
+export async function exportData(): Promise<string> {
+  const [logs, metrics, metricEntries, settings] = await Promise.all([
+    db.logs.toArray(),
+    db.metrics.toArray(),
+    db.metricEntries.toArray(),
+    db.settings.toArray(),
+  ])
+
+  const userSplitJson = settings.find((s) => s.key === 'userSplit')?.value
+  const split = userSplitJson ? JSON.parse(userSplitJson) : null
+
+  const payload = {
+    exportDate: todayISO(),
+    split,
+    workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    metrics,
+    metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
+  }
+
+  return JSON.stringify(payload, null, 2)
+}
