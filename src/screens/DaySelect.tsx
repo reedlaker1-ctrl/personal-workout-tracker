@@ -39,21 +39,7 @@ function useWeekStreak(): number {
 export function DaySelect({ split, onOpenDay, onOpenSettings }: Props) {
   const streak = useWeekStreak()
 
-  const recentByDay = useLiveQuery(async () => {
-    const all = await db.logs.toArray()
-    const map: Record<string, string> = {}
-    for (const l of all) {
-      if (!map[l.dayId] || l.date > map[l.dayId]) map[l.dayId] = l.date
-    }
-    return map
-  }, []) ?? {}
-
-  const sortedDays = [...split.days].sort((a, b) => {
-    const ra = recentByDay[a.id] ?? ''
-    const rb = recentByDay[b.id] ?? ''
-    if (ra === rb) return 0
-    return rb > ra ? 1 : -1
-  })
+  const sortedDays = [...split.days].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="screen">

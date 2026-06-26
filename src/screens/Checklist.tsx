@@ -43,6 +43,19 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
     return [...base, ...extra]
   }, [day, custom])
 
+  const sortedItems = useMemo(() => {
+    const latestDate = (name: string) => {
+      const dates = logs.filter((l) => l.exerciseKey === name).map((l) => l.date)
+      return dates.length ? [...dates].sort().reverse()[0] : ''
+    }
+    return [...items].sort((a, b) => {
+      const ra = latestDate(a.name)
+      const rb = latestDate(b.name)
+      if (ra === rb) return a.name.localeCompare(b.name)
+      return rb > ra ? 1 : -1
+    })
+  }, [items, logs])
+
   const today = todayISO()
   const logsFor = (name: string) => logs.filter((l) => l.exerciseKey === name)
 
@@ -89,7 +102,7 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
         </div>
       )}
 
-      {items.map((it) => {
+      {sortedItems.map((it) => {
         const t = todayLog(it.name)
         const p = priorLog(it.name)
         const max = priorMax(it.name)
