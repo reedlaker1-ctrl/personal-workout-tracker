@@ -1,33 +1,29 @@
-import { splits } from '../config/splits'
 import { setSetting, type Unit } from '../db/db'
+import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 
 interface Props {
-  splitId: string
+  split: Split | null
   unit: Unit
   onClose: () => void
+  onEditSplit: () => void
 }
 
-export function Settings({ splitId, unit, onClose }: Props) {
+export function Settings({ split, unit, onClose, onEditSplit }: Props) {
   return (
     <Sheet title="Settings" onClose={onClose}>
       <div className="subtle" style={{ marginBottom: 8 }}>Split</div>
-      <div style={{ marginBottom: 20 }}>
-        {splits.map((s) => (
-          <button
-            key={s.id}
-            className={`day-card${s.id === splitId ? ' selected' : ''}`}
-            style={{ padding: '16px 18px', marginBottom: 8 }}
-            onClick={() => setSetting('currentSplitId', s.id)}
-          >
-            <span>
-              <div className="day-card-name">{s.name}</div>
-              <div className="day-card-sub">{s.days.length} days</div>
-            </span>
-            <span className="chev">{s.id === splitId ? '✓' : '›'}</span>
-          </button>
-        ))}
-      </div>
+      <button
+        className="day-card"
+        style={{ marginBottom: 24 }}
+        onClick={() => { onClose(); onEditSplit() }}
+      >
+        <span>
+          <div className="day-card-name">{split?.name ?? 'No split'}</div>
+          <div className="day-card-sub">{split ? `${split.days.length} days` : 'Tap to create'}</div>
+        </span>
+        <span className="chev" style={{ fontSize: 14, color: 'var(--accent)' }}>Edit</span>
+      </button>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Units</div>
       <div className="row">

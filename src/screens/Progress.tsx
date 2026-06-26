@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addMetric, type Unit } from '../db/db'
-import { getSplit } from '../config/splits'
+import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
 import { Photos } from './Photos'
@@ -9,14 +9,14 @@ import { num, shortDate } from '../util/format'
 
 interface Props {
   unit: Unit
-  splitId: string
+  split: Split
   onOpenMetric: (id: number) => void
   onOpenExercise: (key: string) => void
 }
 
 type Seg = 'exercises' | 'metrics' | 'photos'
 
-export function Progress({ unit, splitId, onOpenMetric, onOpenExercise }: Props) {
+export function Progress({ unit, split, onOpenMetric, onOpenExercise }: Props) {
   const [seg, setSeg] = useState<Seg>('exercises')
 
   return (
@@ -32,7 +32,7 @@ export function Progress({ unit, splitId, onOpenMetric, onOpenExercise }: Props)
       </div>
 
       {seg === 'exercises' && (
-        <ExercisesList splitId={splitId} unit={unit} onOpenExercise={onOpenExercise} />
+        <ExercisesList split={split} unit={unit} onOpenExercise={onOpenExercise} />
       )}
       {seg === 'metrics' && (
         <MetricsList unit={unit} onOpenMetric={onOpenMetric} />
@@ -43,53 +43,64 @@ export function Progress({ unit, splitId, onOpenMetric, onOpenExercise }: Props)
 }
 
 function ExercisesList({
-  splitId,
+  split,
   unit,
   onOpenExercise,
 }: {
-  splitId: string
+  split: Split
   unit: Unit
   onOpenExercise: (key: string) => void
 }) {
-  const split = getSplit(splitId)
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
+  const withData = new Set(allLogs.map((l) => l.exerciseKey))
 
-  if (!split) return <div className="empty">No split configured.</div>
+  const hasAnyData = split.days.some((day) => day.exercises.some((name) => withData.has(name)))
+
+  if (!hasAnyData) {
+    return (
+      <div className="empty">
+        Log some workouts to see your progress here.
+      </div>
+    )
+  }
 
   return (
     <>
-      {split.days.map((day, di) => (
-        <div key={day.id}>
-          <div className="ex-group-header" style={di === 0 ? { marginTop: 0 } : undefined}>
-            {day.name}
-          </div>
-          {day.exercises.map((name) => {
-            const logs = allLogs
-              .filter((l) => l.exerciseKey === name)
-              .sort((a, b) => (a.date < b.date ? -1 : 1))
-            const points = logs.map((l) => ({ date: l.date, value: l.weight }))
-            const latest = logs[logs.length - 1]
+      {split.days.map((day) => {
+        const dayExercises = day.exercises.filter((name) => withData.has(name))
+        if (dayExercises.length === 0) return null
 
-            return (
-              <button key={name} className="metric-card" onClick={() => onOpenExercise(name)}>
-                <span className="metric-info">
-                  <div className="metric-name">{name}</div>
-                  <div className="metric-latest">
-                    {latest
-                      ? `${num(latest.weight)} ${unit} · ${shortDate(latest.date)}`
-                      : 'No logs yet'}
-                  </div>
-                </span>
-                {points.length > 0 && (
-                  <span style={{ width: 90, flex: 'none' }}>
-                    <LineChart points={points} height={40} sparkline />
+        return (
+          <div key={day.id}>
+            <div className="ex-group-header">{day.name}</div>
+            {dayExercises.map((name) => {
+              const logs = allLogs
+                .filter((l) => l.exerciseKey === name)
+                .sort((a, b) => (a.date < b.date ? -1 : 1))
+              const points = logs.map((l) => ({ date: l.date, value: l.weight }))
+              const latest = logs[logs.length - 1]
+
+              return (
+                <button key={name} className="metric-card" onClick={() => onOpenExercise(name)}>
+                  <span className="metric-info">
+                    <div className="metric-name">{name}</div>
+                    <div className="metric-latest">
+                      {latest
+                        ? `${num(latest.weight)} ${unit} · ${shortDate(latest.date)}`
+                        : 'No logs yet'}
+                    </div>
                   </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      ))}
+                  {points.length > 0 && (
+                    <span style={{ width: 90, flex: 'none' }}>
+                      <LineChart points={points} height={40} sparkline />
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )
+      })}
     </>
   )
 }

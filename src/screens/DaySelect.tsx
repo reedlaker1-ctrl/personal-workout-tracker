@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, todayISO } from '../db/db'
-import { getSplit } from '../config/splits'
+import type { Split } from '../config/splits'
 
 interface Props {
-  splitId: string
+  split: Split
   onOpenDay: (dayId: string) => void
   onOpenSettings: () => void
 }
@@ -36,11 +36,24 @@ function useWeekStreak(): number {
   return streak
 }
 
-export function DaySelect({ splitId, onOpenDay, onOpenSettings }: Props) {
-  const split = getSplit(splitId)
+export function DaySelect({ split, onOpenDay, onOpenSettings }: Props) {
   const streak = useWeekStreak()
-  const today = todayISO()
-  const todayLogs = useLiveQuery(() => db.logs.where('date').equals(today).toArray(), [today]) ?? []
+
+  const recentByDay = useLiveQuery(async () => {
+    const all = await db.logs.toArray()
+    const map: Record<string, string> = {}
+    for (const l of all) {
+      if (!map[l.dayId] || l.date > map[l.dayId]) map[l.dayId] = l.date
+    }
+    return map
+  }, []) ?? {}
+
+  const sortedDays = [...split.days].sort((a, b) => {
+    const ra = recentByDay[a.id] ?? ''
+    const rb = recentByDay[b.id] ?? ''
+    if (ra === rb) return 0
+    return rb > ra ? 1 : -1
+  })
 
   return (
     <div className="screen">
@@ -50,7 +63,7 @@ export function DaySelect({ splitId, onOpenDay, onOpenSettings }: Props) {
       </div>
 
       <button className="btn-ghost" onClick={onOpenSettings} style={{ padding: '0 0 16px' }}>
-        {split ? split.name : 'No'} split ›
+        {split.name} split ›
       </button>
 
       {streak > 0 && (
@@ -59,27 +72,15 @@ export function DaySelect({ splitId, onOpenDay, onOpenSettings }: Props) {
         </div>
       )}
 
-      {!split && <div className="empty">No split configured.</div>}
-
-      {split?.days.map((d) => {
-        const done = d.exercises.filter((ex) =>
-          todayLogs.some((l) => l.exerciseKey === ex)
-        ).length
-        const total = d.exercises.length
-        const allDone = done === total && done > 0
-
-        return (
-          <button key={d.id} className="day-card" onClick={() => onOpenDay(d.id)}>
-            <span>
-              <div className="day-card-name">{d.name}</div>
-              <div className={`day-card-sub${allDone ? ' done' : ''}`}>
-                {done > 0 ? `${done}/${total} done today` : `${total} exercises`}
-              </div>
-            </span>
-            <span className="chev">›</span>
-          </button>
-        )
-      })}
+      {sortedDays.map((d) => (
+        <button key={d.id} className="day-card" onClick={() => onOpenDay(d.id)}>
+          <span>
+            <div className="day-card-name">{d.name}</div>
+            <div className="day-card-sub">{d.exercises.length} exercises</div>
+          </span>
+          <span className="chev">›</span>
+        </button>
+      ))}
     </div>
   )
 }

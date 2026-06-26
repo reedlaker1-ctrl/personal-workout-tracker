@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Unit } from './db/db'
-import { DEFAULT_SPLIT_ID } from './config/splits'
+import { db, setSetting, type Unit } from './db/db'
+import { splits, type Split } from './config/splits'
 import { TabBar } from './components/TabBar'
 import { DaySelect } from './screens/DaySelect'
 import { Checklist } from './screens/Checklist'
@@ -9,6 +9,7 @@ import { Progress } from './screens/Progress'
 import { MetricDetail } from './screens/MetricDetail'
 import { ExerciseDetail } from './screens/ExerciseDetail'
 import { Settings } from './screens/Settings'
+import { SplitSetup } from './screens/SplitSetup'
 
 export default function App() {
   const [tab, setTab] = useState<'workout' | 'progress'>('workout')
@@ -16,25 +17,48 @@ export default function App() {
   const [metricId, setMetricId] = useState<number | null>(null)
   const [exerciseKey, setExerciseKey] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSetup, setShowSetup] = useState(false)
 
   const settings = useLiveQuery(() => db.settings.toArray(), [])
-  const splitId =
-    settings?.find((s) => s.key === 'currentSplitId')?.value ?? DEFAULT_SPLIT_ID
   const unit = (settings?.find((s) => s.key === 'unit')?.value ?? 'lb') as Unit
+
+  const userSplitJson = settings?.find((s) => s.key === 'userSplit')?.value
+  const activeSplit: Split | null = userSplitJson ? (JSON.parse(userSplitJson) as Split) : null
+
+  // Seed from the hardcoded split on first launch so the user isn't dropped into an empty app
+  useEffect(() => {
+    if (settings === undefined) return
+    if (!settings.some((s) => s.key === 'userSplit')) {
+      setSetting('userSplit', JSON.stringify(splits[0]))
+    }
+  }, [settings])
+
+  if (settings === undefined) return null
+
+  if (showSetup) {
+    return (
+      <div className="app">
+        <SplitSetup initialSplit={activeSplit ?? undefined} onDone={() => setShowSetup(false)} />
+      </div>
+    )
+  }
+
+  // activeSplit should be defined after the seed effect fires, but guard just in case
+  if (!activeSplit) return null
 
   return (
     <div className="app">
       {tab === 'workout' &&
         (dayId ? (
           <Checklist
-            splitId={splitId}
+            split={activeSplit}
             dayId={dayId}
             unit={unit}
             onBack={() => setDayId(null)}
           />
         ) : (
           <DaySelect
-            splitId={splitId}
+            split={activeSplit}
             onOpenDay={setDayId}
             onOpenSettings={() => setShowSettings(true)}
           />
@@ -56,7 +80,7 @@ export default function App() {
         ) : (
           <Progress
             unit={unit}
-            splitId={splitId}
+            split={activeSplit}
             onOpenMetric={setMetricId}
             onOpenExercise={setExerciseKey}
           />
@@ -73,9 +97,10 @@ export default function App() {
 
       {showSettings && (
         <Settings
-          splitId={splitId}
+          split={activeSplit}
           unit={unit}
           onClose={() => setShowSettings(false)}
+          onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
         />
       )}
     </div>

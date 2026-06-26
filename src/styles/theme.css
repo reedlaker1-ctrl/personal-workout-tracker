@@ -725,3 +725,71 @@ body.sheet-open .tabbar {
   color: var(--text-faint);
   margin: 20px 0 8px;
 }
+
+/* ── Split Setup screen ─────────────────────────── */
+.setup-intro {
+  color: var(--text-dim);
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.setup-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 14px 12px;
+  margin-bottom: 12px;
+}
+
+.setup-day-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.setup-day-name {
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+.setup-ex-list {
+  margin: 0 0 10px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.setup-ex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.setup-ex-row:last-child {
+  border-bottom: none;
+}
+
+.setup-ex-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.setup-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.setup-note {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 16px;
+  line-height: 1.5;
+  padding: 0 8px;
+}

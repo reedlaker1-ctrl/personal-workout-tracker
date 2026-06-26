@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { getSplit } from '../config/splits'
+import type { Split } from '../config/splits'
 import {
   db,
   logWeight,
@@ -15,7 +15,7 @@ import { Sheet } from '../components/Sheet'
 import { relativeDate, num } from '../util/format'
 
 interface Props {
-  splitId: string
+  split: Split
   dayId: string
   unit: Unit
   onBack: () => void
@@ -26,8 +26,8 @@ interface Item {
   customId?: number
 }
 
-export function Checklist({ splitId, dayId, unit, onBack }: Props) {
-  const day = getSplit(splitId)?.days.find((d) => d.id === dayId)
+export function Checklist({ split, dayId, unit, onBack }: Props) {
+  const day = split.days.find((d) => d.id === dayId)
 
   const custom =
     useLiveQuery(() => db.customExercises.where('dayId').equals(dayId).toArray(), [dayId]) ?? []
@@ -81,9 +81,6 @@ export function Checklist({ splitId, dayId, unit, onBack }: Props) {
       <div className="screen-header">
         <button className="icon-back" onClick={onBack} aria-label="Back">‹</button>
         <h1 className="screen-title">{day.name}</h1>
-        {doneCount > 0 && (
-          <span className="done-counter">{doneCount}/{items.length}</span>
-        )}
       </div>
 
       {isComplete && (
