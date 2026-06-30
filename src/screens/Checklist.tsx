@@ -160,7 +160,7 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
             onTouchMove={(e) => onSwipeTouchMove(it.name, e)}
             onTouchEnd={() => onSwipeTouchEnd(it.name)}
           >
-            <div className="ex-skip-bg">Skip</div>
+            {isDragging && <div className="ex-skip-bg">Skip</div>}
             <button
               className={`ex-row${t ? ' done' : ''}`}
               style={{
