@@ -462,6 +462,41 @@ body.sheet-open .tabbar {
   font-weight: 600;
 }
 
+.photo-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  min-height: 36px;
+}
+
+.photo-cell.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.photo-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.3);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: transparent;
+}
+
+.photo-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .photo-view-backdrop {
   position: fixed;
   inset: 0;
