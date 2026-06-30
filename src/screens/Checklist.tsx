@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { Split } from '../config/splits'
 import {
@@ -31,11 +31,53 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
 
   const custom =
     useLiveQuery(() => db.customExercises.where('dayId').equals(dayId).toArray(), [dayId]) ?? []
-  const logs =
+
+  // Day-scoped: determines "done today" checkmark and recency sort within this day
+  const dayLogs =
     useLiveQuery(() => db.logs.where('dayId').equals(dayId).toArray(), [dayId]) ?? []
+
+  // All logs: used for cross-day prior weight lookups
+  const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
 
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
+
+  const today = todayISO()
+
+  // Hidden-for-day: exercises swiped away reappear automatically the next day.
+  // `today` is recomputed on every render so an overnight open app self-corrects on next interaction.
+  const [hiddenForDay, setHiddenForDay] = useState<{ date: string; names: Set<string> }>({
+    date: today,
+    names: new Set(),
+  })
+  const hidden = hiddenForDay.date === today ? hiddenForDay.names : new Set<string>()
+  const hideExercise = (name: string) =>
+    setHiddenForDay({ date: today, names: new Set([...hidden, name]) })
+  const restoreAll = () => setHiddenForDay({ date: today, names: new Set() })
+
+  // Swipe gesture state
+  const [activeDrag, setActiveDrag] = useState<{ name: string; dx: number } | null>(null)
+  const touchStartX = useRef(0)
+  const hasMoved = useRef(false)
+
+  const onSwipeTouchStart = (name: string, e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    hasMoved.current = false
+    setActiveDrag({ name, dx: 0 })
+  }
+
+  const onSwipeTouchMove = (name: string, e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - touchStartX.current
+    if (Math.abs(dx) > 5) hasMoved.current = true
+    if (dx < 0) setActiveDrag((prev) => (prev?.name === name ? { name, dx } : prev))
+  }
+
+  const onSwipeTouchEnd = (name: string) => {
+    if (activeDrag?.name === name && activeDrag.dx < -80) {
+      hideExercise(name)
+    }
+    setActiveDrag(null)
+  }
 
   const items: Item[] = useMemo(() => {
     const base = (day?.exercises ?? []).map((name) => ({ name }))
@@ -43,9 +85,28 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
     return [...base, ...extra]
   }, [day, custom])
 
+  const dayLogsFor = (name: string) => dayLogs.filter((l) => l.exerciseKey === name)
+  const allLogsFor = (name: string) => allLogs.filter((l) => l.exerciseKey === name)
+
+  const todayLog = (name: string): WorkoutLog | undefined =>
+    dayLogsFor(name)
+      .filter((l) => l.date === today)
+      .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
+
+  const priorLog = (name: string): WorkoutLog | undefined =>
+    allLogsFor(name)
+      .filter((l) => l.date < today)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
+
+  const priorMax = (name: string): number | undefined => {
+    const priors = allLogsFor(name).filter((l) => l.date < today)
+    if (priors.length === 0) return undefined
+    return Math.max(...priors.map((l) => l.weight))
+  }
+
   const sortedItems = useMemo(() => {
     const latestDate = (name: string) => {
-      const dates = logs.filter((l) => l.exerciseKey === name).map((l) => l.date)
+      const dates = dayLogs.filter((l) => l.exerciseKey === name).map((l) => l.date)
       return dates.length ? [...dates].sort().reverse()[0] : ''
     }
     return [...items].sort((a, b) => {
@@ -54,26 +115,7 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
       if (ra === rb) return a.name.localeCompare(b.name)
       return rb > ra ? 1 : -1
     })
-  }, [items, logs])
-
-  const today = todayISO()
-  const logsFor = (name: string) => logs.filter((l) => l.exerciseKey === name)
-
-  const todayLog = (name: string): WorkoutLog | undefined =>
-    logsFor(name)
-      .filter((l) => l.date === today)
-      .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
-
-  const priorLog = (name: string): WorkoutLog | undefined =>
-    logsFor(name)
-      .filter((l) => l.date < today)
-      .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
-
-  const priorMax = (name: string): number | undefined => {
-    const priors = logsFor(name).filter((l) => l.date < today)
-    if (priors.length === 0) return undefined
-    return Math.max(...priors.map((l) => l.weight))
-  }
+  }, [items, dayLogs])
 
   const doneCount = items.filter((it) => !!todayLog(it.name)).length
   const isComplete = doneCount > 0 && doneCount === items.length
@@ -102,36 +144,57 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
         </div>
       )}
 
-      {sortedItems.map((it) => {
+      {sortedItems.filter((it) => !hidden.has(it.name)).map((it) => {
         const t = todayLog(it.name)
         const p = priorLog(it.name)
         const max = priorMax(it.name)
         const isPR = t != null && (max == null || t.weight > max)
+        const isDragging = activeDrag?.name === it.name
+        const dx = isDragging ? Math.min(0, activeDrag!.dx) : 0
+
         return (
-          <button
+          <div
             key={it.name + (it.customId ?? '')}
-            className={`ex-row${t ? ' done' : ''}`}
-            onClick={() => setEditing(it)}
+            className="ex-swipe-wrap"
+            onTouchStart={(e) => onSwipeTouchStart(it.name, e)}
+            onTouchMove={(e) => onSwipeTouchMove(it.name, e)}
+            onTouchEnd={() => onSwipeTouchEnd(it.name)}
           >
-            <span className={`ex-check${t ? ' on' : ''}`}>✓</span>
-            <span className="ex-main">
-              <div className="ex-name">{it.name}</div>
-              {t ? (
-                <div className="ex-today">Today · {num(t.weight)} {unit}</div>
-              ) : p ? (
-                <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
-              ) : (
-                <div className="ex-prior">No history yet</div>
+            <div className="ex-skip-bg">Skip</div>
+            <button
+              className={`ex-row${t ? ' done' : ''}`}
+              style={{
+                transform: `translateX(${dx}px)`,
+                transition: isDragging ? 'none' : 'transform 0.2s ease',
+              }}
+              onClick={() => { if (!hasMoved.current) setEditing(it) }}
+            >
+              <span className={`ex-check${t ? ' on' : ''}`}>✓</span>
+              <span className="ex-main">
+                <div className="ex-name">{it.name}</div>
+                {t ? (
+                  <div className="ex-today">Today · {num(t.weight)} {unit}</div>
+                ) : p ? (
+                  <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
+                ) : (
+                  <div className="ex-prior">No history yet</div>
+                )}
+              </span>
+              {t && (
+                isPR
+                  ? <span className="pr-badge">PR</span>
+                  : <span className="ex-weight">{num(t.weight)}</span>
               )}
-            </span>
-            {t && (
-              isPR
-                ? <span className="pr-badge">PR</span>
-                : <span className="ex-weight">{num(t.weight)}</span>
-            )}
-          </button>
+            </button>
+          </div>
         )
       })}
+
+      {hidden.size > 0 && (
+        <button className="btn btn-ghost btn-full" onClick={restoreAll}>
+          {hidden.size} skipped · Restore
+        </button>
+      )}
 
       <button className="btn btn-ghost btn-full fab-row" onClick={() => setAdding(true)}>
         + Add exercise
@@ -179,6 +242,7 @@ function LogSheet({
     existing ? num(existing.weight) : prior ? num(prior.weight) : ''
   )
   const [counts, setCounts] = useState<Record<number, number>>({})
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const adjust = (w: number, delta: number) =>
     setCounts((prev) => ({ ...prev, [w]: Math.max(0, (prev[w] ?? 0) + delta) }))
@@ -186,6 +250,7 @@ function LogSheet({
   const quickAdjust = (delta: number) => {
     const current = parseFloat(val) || 0
     setVal(num(Math.max(0, current + delta)))
+    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   const platesPerSide = PLATE_WEIGHTS.reduce((sum, w) => sum + w * (counts[w] ?? 0), 0)
@@ -213,6 +278,7 @@ function LogSheet({
       {mode === 'weight' ? (
         <>
           <input
+            ref={inputRef}
             className="field"
             type="number"
             inputMode="decimal"
@@ -220,11 +286,17 @@ function LogSheet({
             placeholder={`Weight (${unit})`}
             value={val}
             onChange={(e) => setVal(e.target.value)}
+            onFocus={(e) => e.target.select()}
             onKeyDown={(e) => e.key === 'Enter' && save()}
           />
           <div className="weight-adjusters">
             {ADJUSTMENTS.map((d) => (
-              <button key={d} type="button" className="adj-btn" onClick={() => quickAdjust(d)}>
+              <button
+                key={d}
+                type="button"
+                className="adj-btn"
+                onPointerDown={(e) => { e.preventDefault(); quickAdjust(d) }}
+              >
                 {d > 0 ? '+' : ''}{d}
               </button>
             ))}
@@ -261,7 +333,7 @@ function LogSheet({
 
       <div className="row">
         {existing && (
-          <button type="button" className="btn btn-outline" onClick={async () => { await deleteTodayLog(item.name); onClose() }}>
+          <button type="button" className="btn btn-outline" onClick={async () => { await deleteTodayLog(item.name, dayId); onClose() }}>
             Clear
           </button>
         )}

@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, addPhoto, deletePhoto, type ProgressPhoto } from '../db/db'
+import { db, addPhoto, deletePhoto } from '../db/db'
 import { shortDate } from '../util/format'
 
 export function Photos() {
   const photos =
     useLiveQuery(() => db.photos.orderBy('date').reverse().toArray(), []) ?? []
   const fileRef = useRef<HTMLInputElement>(null)
-  const [viewing, setViewing] = useState<number | null>(null)
+  const [viewingIndex, setViewingIndex] = useState<number | null>(null)
+  const touchStartX = useRef(0)
 
-  // Build (and clean up) object URLs for each photo blob.
   const urls = useMemo(() => {
     const map = new Map<number, string>()
     for (const p of photos) if (p.id != null) map.set(p.id, URL.createObjectURL(p.blob))
@@ -23,11 +23,21 @@ export function Photos() {
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) await addPhoto(file)
-    e.target.value = '' // allow re-picking the same file
+    e.target.value = ''
   }
 
-  const viewingPhoto: ProgressPhoto | undefined =
-    viewing != null ? photos.find((p) => p.id === viewing) : undefined
+  const viewingPhoto = viewingIndex !== null ? photos[viewingIndex] : undefined
+
+  const onLightboxTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  const onLightboxTouchEnd = (e: React.TouchEvent) => {
+    if (viewingIndex === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    if (dx < -50) setViewingIndex(Math.min(photos.length - 1, viewingIndex + 1))
+    else if (dx > 50) setViewingIndex(Math.max(0, viewingIndex - 1))
+  }
 
   return (
     <>
@@ -45,8 +55,8 @@ export function Photos() {
       )}
 
       <div className="photo-grid">
-        {photos.map((p) => (
-          <button key={p.id} className="photo-cell" onClick={() => setViewing(p.id!)}>
+        {photos.map((p, i) => (
+          <button key={p.id} className="photo-cell" onClick={() => setViewingIndex(i)}>
             <img src={urls.get(p.id!)} alt={shortDate(p.date)} />
             <span className="photo-date">{shortDate(p.date)}</span>
           </button>
@@ -61,26 +71,50 @@ export function Photos() {
         + Add photo
       </button>
 
-      {viewingPhoto && (
-        <div className="photo-view-backdrop">
+      {viewingPhoto && viewingIndex !== null && (
+        <div
+          className="photo-view-backdrop"
+          onTouchStart={onLightboxTouchStart}
+          onTouchEnd={onLightboxTouchEnd}
+        >
           <div className="photo-view-bar">
             <button
               className="del-link"
               onClick={async () => {
                 if (confirm('Delete this photo?')) {
                   await deletePhoto(viewingPhoto.id!)
-                  setViewing(null)
+                  setViewingIndex(null)
                 }
               }}
             >
               Delete
             </button>
-            <span className="subtle">{shortDate(viewingPhoto.date)}</span>
-            <button className="btn-ghost" onClick={() => setViewing(null)}>
+            <span className="photo-position">{viewingIndex + 1} / {photos.length}</span>
+            <button className="btn-ghost" onClick={() => setViewingIndex(null)}>
               Done
             </button>
           </div>
+
           <img src={urls.get(viewingPhoto.id!)} alt={shortDate(viewingPhoto.date)} />
+
+          <div className="photo-nav-overlay">
+            <button
+              className="photo-nav-btn"
+              onClick={() => setViewingIndex(Math.max(0, viewingIndex - 1))}
+              disabled={viewingIndex === 0}
+              aria-label="Newer photo"
+            >
+              ‹
+            </button>
+            <button
+              className="photo-nav-btn"
+              onClick={() => setViewingIndex(Math.min(photos.length - 1, viewingIndex + 1))}
+              disabled={viewingIndex === photos.length - 1}
+              aria-label="Older photo"
+            >
+              ›
+            </button>
+          </div>
         </div>
       )}
     </>

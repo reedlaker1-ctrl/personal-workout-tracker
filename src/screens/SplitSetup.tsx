@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { setSetting } from '../db/db'
+import { setSetting, renameExerciseKey } from '../db/db'
 import type { Split, SplitDay } from '../config/splits'
+
+type ExDraft = { localId: string; originalName: string; name: string }
 
 interface DayDraft {
   id: string
   name: string
-  exercises: string[]
+  exercises: ExDraft[]
 }
 
 interface Props {
@@ -21,7 +23,11 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
   const isNew = !initialSplit
   const [splitName, setSplitName] = useState(initialSplit?.name ?? '')
   const [days, setDays] = useState<DayDraft[]>(
-    initialSplit?.days.map((d) => ({ id: d.id, name: d.name, exercises: [...d.exercises] })) ?? []
+    initialSplit?.days.map((d) => ({
+      id: d.id,
+      name: d.name,
+      exercises: d.exercises.map((ex) => ({ localId: ex, originalName: ex, name: ex })),
+    })) ?? []
   )
   const [newEx, setNewEx] = useState<Record<string, string>>({})
 
@@ -35,29 +41,60 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
   const updateDayName = (id: string, name: string) =>
     setDays((prev) => prev.map((d) => (d.id === id ? { ...d, name } : d)))
 
-  const addExercise = (dayId: string) => {
-    const ex = (newEx[dayId] ?? '').trim()
-    if (!ex) return
+  const updateExerciseName = (dayId: string, localId: string, value: string) =>
     setDays((prev) =>
-      prev.map((d) => (d.id === dayId ? { ...d, exercises: [...d.exercises, ex] } : d))
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, exercises: d.exercises.map((e) => (e.localId === localId ? { ...e, name: value } : e)) }
+          : d
+      )
+    )
+
+  const addExercise = (dayId: string) => {
+    const name = (newEx[dayId] ?? '').trim()
+    if (!name) return
+    const localId = `new-${Math.random().toString(36).slice(2, 8)}`
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, exercises: [...d.exercises, { localId, originalName: '', name }] }
+          : d
+      )
     )
     setNewEx((prev) => ({ ...prev, [dayId]: '' }))
   }
 
-  const removeExercise = (dayId: string, name: string) =>
+  const removeExercise = (dayId: string, localId: string) =>
     setDays((prev) =>
       prev.map((d) =>
-        d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e !== name) } : d
+        d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e.localId !== localId) } : d
       )
     )
 
-  const canSave = splitName.trim().length > 0 && days.some((d) => d.name.trim() && d.exercises.length > 0)
+  const canSave =
+    splitName.trim().length > 0 &&
+    days.some((d) => d.name.trim() && d.exercises.some((e) => e.name.trim()))
 
   const save = async () => {
     if (!canSave) return
+
+    // Migrate any renamed exercises before persisting the new split config
+    const renames = days.flatMap((d) =>
+      d.exercises
+        .filter((e) => e.originalName !== '' && e.originalName !== e.name && e.name.trim())
+        .map((e) => ({ from: e.originalName, to: e.name.trim() }))
+    )
+    for (const { from, to } of renames) {
+      await renameExerciseKey(from, to)
+    }
+
     const validDays: SplitDay[] = days
-      .filter((d) => d.name.trim() && d.exercises.length > 0)
-      .map((d) => ({ id: d.id, name: d.name.trim(), exercises: d.exercises }))
+      .filter((d) => d.name.trim() && d.exercises.some((e) => e.name.trim()))
+      .map((d) => ({
+        id: d.id,
+        name: d.name.trim(),
+        exercises: d.exercises.filter((e) => e.name.trim()).map((e) => e.name.trim()),
+      }))
     const split: Split = { id: 'user', name: splitName.trim(), days: validDays }
     await setSetting('userSplit', JSON.stringify(split))
     onDone()
@@ -105,13 +142,18 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
           {day.exercises.length > 0 && (
             <div className="setup-ex-list">
               {day.exercises.map((ex) => (
-                <div key={ex} className="setup-ex-row">
-                  <span className="setup-ex-name">{ex}</span>
+                <div key={ex.localId} className="setup-ex-row">
+                  <input
+                    className="setup-ex-input"
+                    value={ex.name}
+                    placeholder="Exercise name"
+                    onChange={(e) => updateExerciseName(day.id, ex.localId, e.target.value)}
+                  />
                   <button
                     type="button"
                     className="btn-icon"
                     style={{ fontSize: 14, padding: '4px 0 4px 10px' }}
-                    onClick={() => removeExercise(day.id, ex)}
+                    onClick={() => removeExercise(day.id, ex.localId)}
                   >
                     ✕
                   </button>
@@ -151,7 +193,7 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
 
       {!isNew && (
         <p className="setup-note">
-          Renaming an exercise disconnects its old log history. Adding or removing exercises is always safe.
+          Renaming an exercise updates all of its log history to the new name.
         </p>
       )}
     </div>

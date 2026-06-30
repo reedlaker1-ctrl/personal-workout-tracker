@@ -52,9 +52,16 @@ function ExercisesList({
   onOpenExercise: (key: string) => void
 }) {
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
+  const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
   const withData = new Set(allLogs.map((l) => l.exerciseKey))
 
-  const hasAnyData = split.days.some((day) => day.exercises.some((name) => withData.has(name)))
+  const hasAnyData = split.days.some((day) => {
+    const names = [
+      ...day.exercises,
+      ...allCustom.filter((c) => c.dayId === day.id).map((c) => c.name),
+    ]
+    return names.some((name) => withData.has(name))
+  })
 
   if (!hasAnyData) {
     return (
@@ -67,7 +74,10 @@ function ExercisesList({
   return (
     <>
       {split.days.map((day) => {
-        const dayExercises = day.exercises.filter((name) => withData.has(name))
+        const dayExercises = [
+          ...day.exercises,
+          ...allCustom.filter((c) => c.dayId === day.id).map((c) => c.name),
+        ].filter((name) => withData.has(name))
         if (dayExercises.length === 0) return null
 
         return (

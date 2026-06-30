@@ -133,9 +133,24 @@ export async function logWeight(
   }
 }
 
-export async function deleteTodayLog(exerciseKey: string): Promise<void> {
-  const existing = await getTodayLog(exerciseKey)
+export async function deleteTodayLog(exerciseKey: string, dayId: string): Promise<void> {
+  const today = todayISO()
+  const existing = await db.logs
+    .where('exerciseKey')
+    .equals(exerciseKey)
+    .and((l) => l.dayId === dayId && l.date === today)
+    .first()
   if (existing?.id != null) await db.logs.delete(existing.id)
+}
+
+export async function renameExerciseKey(oldKey: string, newKey: string): Promise<void> {
+  await db.transaction('rw', db.logs, db.customExercises, async () => {
+    await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
+    const customs = await db.customExercises.toArray()
+    for (const c of customs.filter((c) => c.name === oldKey)) {
+      await db.customExercises.update(c.id!, { name: newKey })
+    }
+  })
 }
 
 // ── Custom exercises ──

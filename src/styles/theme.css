@@ -716,6 +716,38 @@ body.sheet-open .tabbar {
   margin-bottom: 18px;
 }
 
+/* ── Swipe-to-skip exercise row ─────────────────── */
+.ex-swipe-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 9px;
+}
+
+.ex-swipe-wrap .ex-row {
+  margin-bottom: 0;
+  border-radius: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.ex-skip-bg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* ── Exercise group headers (Progress > Exercises) ── */
 .ex-group-header {
   font-size: 11px;
@@ -779,6 +811,24 @@ body.sheet-open .tabbar {
   color: var(--text);
 }
 
+.setup-ex-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.setup-ex-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
 .setup-add-row {
   display: flex;
   gap: 8px;
@@ -792,4 +842,42 @@ body.sheet-open .tabbar {
   margin-top: 16px;
   line-height: 1.5;
   padding: 0 8px;
+}
+
+/* ── Photo lightbox nav ──────────────────────────── */
+.photo-position {
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.photo-nav-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  pointer-events: none;
+}
+
+.photo-nav-btn {
+  pointer-events: all;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: #fff;
+  font-size: 30px;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.photo-nav-btn:disabled {
+  opacity: 0.15;
 }
