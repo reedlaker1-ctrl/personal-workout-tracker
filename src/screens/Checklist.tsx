@@ -7,6 +7,7 @@ import {
   deleteTodayLog,
   addCustomExercise,
   removeCustomExercise,
+  setSetting,
   todayISO,
   type Unit,
   type WorkoutLog,
@@ -18,6 +19,7 @@ interface Props {
   split: Split
   dayId: string
   unit: Unit
+  dayRolloverHour: number
   onBack: () => void
 }
 
@@ -26,7 +28,7 @@ interface Item {
   customId?: number
 }
 
-export function Checklist({ split, dayId, unit, onBack }: Props) {
+export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
   const custom =
@@ -42,18 +44,20 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const today = todayISO()
+  const today = todayISO(dayRolloverHour)
 
-  // Hidden-for-day: exercises swiped away reappear automatically the next day.
-  // `today` is recomputed on every render so an overnight open app self-corrects on next interaction.
-  const [hiddenForDay, setHiddenForDay] = useState<{ date: string; names: Set<string> }>({
-    date: today,
-    names: new Set(),
-  })
-  const hidden = hiddenForDay.date === today ? hiddenForDay.names : new Set<string>()
-  const hideExercise = (name: string) =>
-    setHiddenForDay({ date: today, names: new Set([...hidden, name]) })
-  const restoreAll = () => setHiddenForDay({ date: today, names: new Set() })
+  // Hidden-for-day: exercises swiped away stay hidden — even across navigating
+  // away and back — until the day resets or "Restore" is tapped. Persisted in
+  // settings (keyed per day) rather than component state so it survives unmount.
+  const hiddenSetting = useLiveQuery(() => db.settings.get(`hidden:${dayId}`), [dayId])
+  const hiddenForDay: { date: string; names: string[] } = hiddenSetting
+    ? JSON.parse(hiddenSetting.value)
+    : { date: today, names: [] }
+  const hidden = hiddenForDay.date === today ? new Set(hiddenForDay.names) : new Set<string>()
+  const persistHidden = (names: Set<string>) =>
+    setSetting(`hidden:${dayId}`, JSON.stringify({ date: today, names: [...names] }))
+  const hideExercise = (name: string) => persistHidden(new Set([...hidden, name]))
+  const restoreAll = () => persistHidden(new Set())
 
   // Swipe gesture state
   const [activeDrag, setActiveDrag] = useState<{ name: string; dx: number } | null>(null)

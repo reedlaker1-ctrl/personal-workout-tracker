@@ -70,9 +70,16 @@ export const db = new WorkoutDB()
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export function todayISO(): string {
-  // Local date as YYYY-MM-DD (avoids UTC off-by-one near midnight).
+// The "day" rolls over at this local hour instead of midnight, so a workout
+// started before midnight but still going after it doesn't get treated as a
+// new day partway through. User-configurable via the "dayRolloverHour" setting.
+export const DEFAULT_DAY_ROLLOVER_HOUR = 3
+
+export function todayISO(rolloverHour: number = DEFAULT_DAY_ROLLOVER_HOUR): string {
+  // Local date as YYYY-MM-DD (avoids UTC off-by-one near midnight), shifted
+  // back by the rollover hour so times before it still count as "yesterday".
   const d = new Date()
+  d.setHours(d.getHours() - rolloverHour)
   const tz = d.getTimezoneOffset() * 60000
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
 }
@@ -95,11 +102,15 @@ export async function getUnit(): Promise<Unit> {
   return (await getSetting('unit', 'lb')) as Unit
 }
 
+export async function getDayRolloverHour(): Promise<number> {
+  return Number(await getSetting('dayRolloverHour', String(DEFAULT_DAY_ROLLOVER_HOUR)))
+}
+
 // ── Logs ──
 
 /** Most recent log for an exercise strictly before today (the "prior" weight). */
 export async function getPriorLog(exerciseKey: string): Promise<WorkoutLog | undefined> {
-  const today = todayISO()
+  const today = todayISO(await getDayRolloverHour())
   const logs = await db.logs.where('exerciseKey').equals(exerciseKey).toArray()
   const prior = logs
     .filter((l) => l.date < today)
@@ -109,7 +120,7 @@ export async function getPriorLog(exerciseKey: string): Promise<WorkoutLog | und
 
 /** Today's log for an exercise, if one exists. */
 export async function getTodayLog(exerciseKey: string): Promise<WorkoutLog | undefined> {
-  const today = todayISO()
+  const today = todayISO(await getDayRolloverHour())
   const logs = await db.logs
     .where('exerciseKey')
     .equals(exerciseKey)
@@ -129,12 +140,12 @@ export async function logWeight(
   if (existing?.id != null) {
     await db.logs.update(existing.id, { weight })
   } else {
-    await db.logs.add({ exerciseKey, dayId, weight, date: todayISO() })
+    await db.logs.add({ exerciseKey, dayId, weight, date: todayISO(await getDayRolloverHour()) })
   }
 }
 
 export async function deleteTodayLog(exerciseKey: string, dayId: string): Promise<void> {
-  const today = todayISO()
+  const today = todayISO(await getDayRolloverHour())
   const existing = await db.logs
     .where('exerciseKey')
     .equals(exerciseKey)
@@ -175,7 +186,7 @@ export async function deleteMetric(id: number): Promise<void> {
 }
 
 export async function addMetricEntry(metricId: number, value: number): Promise<void> {
-  await db.metricEntries.add({ metricId, value, date: todayISO() })
+  await db.metricEntries.add({ metricId, value, date: todayISO(await getDayRolloverHour()) })
 }
 
 export async function deleteMetricEntry(id: number): Promise<void> {
@@ -184,7 +195,7 @@ export async function deleteMetricEntry(id: number): Promise<void> {
 
 // ── Photos ──
 export async function addPhoto(blob: Blob, caption?: string): Promise<void> {
-  await db.photos.add({ blob, date: todayISO(), caption })
+  await db.photos.add({ blob, date: todayISO(await getDayRolloverHour()), caption })
 }
 
 export async function deletePhoto(id: number): Promise<void> {
@@ -204,7 +215,7 @@ export async function exportData(): Promise<string> {
   const split = userSplitJson ? JSON.parse(userSplitJson) : null
 
   const payload = {
-    exportDate: todayISO(),
+    exportDate: todayISO(await getDayRolloverHour()),
     split,
     workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
     metrics,
