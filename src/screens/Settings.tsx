@@ -6,11 +6,18 @@ import { Sheet } from '../components/Sheet'
 interface Props {
   split: Split | null
   unit: Unit
+  dayRolloverHour: number
   onClose: () => void
   onEditSplit: () => void
 }
 
-export function Settings({ split, unit, onClose, onEditSplit }: Props) {
+const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5]
+
+function hourLabel(h: number): string {
+  return h === 0 ? '12am' : `${h}am`
+}
+
+export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }: Props) {
   const [exporting, setExporting] = useState(false)
 
   const handleExport = async () => {
@@ -21,7 +28,7 @@ export function Settings({ split, unit, onClose, onEditSplit }: Props) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `workout-${todayISO()}.json`
+      a.download = `workout-${todayISO(dayRolloverHour)}.json`
       a.click()
       URL.revokeObjectURL(url)
     } finally {
@@ -55,6 +62,22 @@ export function Settings({ split, unit, onClose, onEditSplit }: Props) {
             {u}
           </button>
         ))}
+      </div>
+
+      <div className="subtle" style={{ marginBottom: 8 }}>Day resets at</div>
+      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        {ROLLOVER_HOURS.map((h) => (
+          <button
+            key={h}
+            className={`btn${h === dayRolloverHour ? ' btn-accent' : ''}`}
+            onClick={() => setSetting('dayRolloverHour', String(h))}
+          >
+            {hourLabel(h)}
+          </button>
+        ))}
+      </div>
+      <div className="subtle" style={{ marginBottom: 24, fontSize: 12, lineHeight: 1.5 }}>
+        A workout still going after midnight counts as the day before until this time.
       </div>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Data</div>

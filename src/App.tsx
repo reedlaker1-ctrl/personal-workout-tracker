@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, setSetting, type Unit } from './db/db'
+import { db, setSetting, DEFAULT_DAY_ROLLOVER_HOUR, type Unit } from './db/db'
 import { splits, type Split } from './config/splits'
 import { TabBar } from './components/TabBar'
 import { DaySelect } from './screens/DaySelect'
@@ -21,6 +21,9 @@ export default function App() {
 
   const settings = useLiveQuery(() => db.settings.toArray(), [])
   const unit = (settings?.find((s) => s.key === 'unit')?.value ?? 'lb') as Unit
+  const dayRolloverHour = Number(
+    settings?.find((s) => s.key === 'dayRolloverHour')?.value ?? DEFAULT_DAY_ROLLOVER_HOUR,
+  )
 
   const userSplitJson = settings?.find((s) => s.key === 'userSplit')?.value
   const activeSplit: Split | null = userSplitJson ? (JSON.parse(userSplitJson) as Split) : null
@@ -54,11 +57,13 @@ export default function App() {
             split={activeSplit}
             dayId={dayId}
             unit={unit}
+            dayRolloverHour={dayRolloverHour}
             onBack={() => setDayId(null)}
           />
         ) : (
           <DaySelect
             split={activeSplit}
+            dayRolloverHour={dayRolloverHour}
             onOpenDay={setDayId}
             onOpenSettings={() => setShowSettings(true)}
           />
@@ -99,6 +104,7 @@ export default function App() {
         <Settings
           split={activeSplit}
           unit={unit}
+          dayRolloverHour={dayRolloverHour}
           onClose={() => setShowSettings(false)}
           onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
         />

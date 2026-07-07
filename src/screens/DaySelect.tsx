@@ -4,6 +4,7 @@ import type { Split } from '../config/splits'
 
 interface Props {
   split: Split
+  dayRolloverHour: number
   onOpenDay: (dayId: string) => void
   onOpenSettings: () => void
 }
@@ -22,10 +23,10 @@ function prevMonday(mondayStr: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function useWeekStreak(): number {
+function useWeekStreak(dayRolloverHour: number): number {
   const logs = useLiveQuery(() => db.logs.toArray(), []) ?? []
   const weekSet = new Set(logs.map((l) => weekMonday(l.date)))
-  const today = todayISO()
+  const today = todayISO(dayRolloverHour)
   const curWeek = weekMonday(today)
   const lastWeek = prevMonday(curWeek)
   const start = weekSet.has(curWeek) ? curWeek : weekSet.has(lastWeek) ? lastWeek : null
@@ -36,8 +37,8 @@ function useWeekStreak(): number {
   return streak
 }
 
-export function DaySelect({ split, onOpenDay, onOpenSettings }: Props) {
-  const streak = useWeekStreak()
+export function DaySelect({ split, dayRolloverHour, onOpenDay, onOpenSettings }: Props) {
+  const streak = useWeekStreak(dayRolloverHour)
 
   const sortedDays = [...split.days].sort((a, b) => a.name.localeCompare(b.name))
 

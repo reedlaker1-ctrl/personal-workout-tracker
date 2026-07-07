@@ -18,6 +18,7 @@ interface Props {
   split: Split
   dayId: string
   unit: Unit
+  dayRolloverHour: number
   onBack: () => void
 }
 
@@ -26,7 +27,7 @@ interface Item {
   customId?: number
 }
 
-export function Checklist({ split, dayId, unit, onBack }: Props) {
+export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
   const custom =
@@ -42,7 +43,7 @@ export function Checklist({ split, dayId, unit, onBack }: Props) {
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const today = todayISO()
+  const today = todayISO(dayRolloverHour)
 
   // Hidden-for-day: exercises swiped away reappear automatically the next day.
   // `today` is recomputed on every render so an overnight open app self-corrects on next interaction.
