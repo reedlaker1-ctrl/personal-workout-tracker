@@ -70,9 +70,16 @@ export const db = new WorkoutDB()
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// The "day" rolls over at this local hour instead of midnight, so a workout
+// started before midnight but still going after it doesn't get treated as a
+// new day partway through.
+const DAY_ROLLOVER_HOUR = 3
+
 export function todayISO(): string {
-  // Local date as YYYY-MM-DD (avoids UTC off-by-one near midnight).
+  // Local date as YYYY-MM-DD (avoids UTC off-by-one near midnight), shifted
+  // back by the rollover hour so times before it still count as "yesterday".
   const d = new Date()
+  d.setHours(d.getHours() - DAY_ROLLOVER_HOUR)
   const tz = d.getTimezoneOffset() * 60000
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
 }
