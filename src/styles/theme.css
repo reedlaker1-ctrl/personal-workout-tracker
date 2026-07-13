@@ -271,12 +271,17 @@ body.sheet-open .tabbar {
   border-top: 1px solid var(--border-light);
   animation: slideup 0.22s cubic-bezier(0.32, 0.72, 0, 1);
 }
+.sheet-handle-area {
+  padding: 6px 0 14px;
+  margin: -6px 0 4px;
+  touch-action: none;
+}
 .sheet-handle {
   width: 36px;
   height: 4px;
   background: var(--border-light);
   border-radius: 2px;
-  margin: 0 auto 18px;
+  margin: 0 auto;
 }
 .sheet h3 {
   margin: 0 0 18px;
@@ -753,10 +758,21 @@ body.sheet-open .tabbar {
 
 /* ── Swipe-to-skip exercise row ─────────────────── */
 .ex-swipe-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-bottom: 9px;
+  transition: grid-template-rows 220ms ease, margin-bottom 220ms ease;
+}
+.ex-swipe-wrap.dismissing {
+  grid-template-rows: 0fr;
+  margin-bottom: 0;
+}
+
+.ex-swipe-inner {
   position: relative;
   border-radius: 14px;
   overflow: hidden;
-  margin-bottom: 9px;
+  min-height: 0;
 }
 
 .ex-swipe-wrap .ex-row {

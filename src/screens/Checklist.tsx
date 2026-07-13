@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { Split } from '../config/splits'
 import {
@@ -64,6 +64,17 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
   const touchStartX = useRef(0)
   const hasMoved = useRef(false)
 
+  // Dismiss animation: once a swipe clears the threshold, the row finishes
+  // sliding off-screen and collapses before it's actually removed from the
+  // list, instead of snapping back and popping out of existence.
+  const DISMISS_MS = 220
+  const [dismissing, setDismissing] = useState<string | null>(null)
+  const dismissTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (dismissTimeout.current) clearTimeout(dismissTimeout.current)
+  }, [])
+
   const onSwipeTouchStart = (name: string, e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
     hasMoved.current = false
@@ -78,9 +89,15 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
 
   const onSwipeTouchEnd = (name: string) => {
     if (activeDrag?.name === name && activeDrag.dx < -80) {
-      hideExercise(name)
+      setActiveDrag(null)
+      setDismissing(name)
+      dismissTimeout.current = setTimeout(() => {
+        hideExercise(name)
+        setDismissing(null)
+      }, DISMISS_MS)
+    } else {
+      setActiveDrag(null)
     }
-    setActiveDrag(null)
   }
 
   const items: Item[] = useMemo(() => {
@@ -154,42 +171,48 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
         const max = priorMax(it.name)
         const isPR = t != null && (max == null || t.weight > max)
         const isDragging = activeDrag?.name === it.name
-        const dx = isDragging ? Math.min(0, activeDrag!.dx) : 0
+        const isDismissing = dismissing === it.name
+        const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
 
         return (
           <div
             key={it.name + (it.customId ?? '')}
-            className="ex-swipe-wrap"
+            className={`ex-swipe-wrap${isDismissing ? ' dismissing' : ''}`}
             onTouchStart={(e) => onSwipeTouchStart(it.name, e)}
             onTouchMove={(e) => onSwipeTouchMove(it.name, e)}
             onTouchEnd={() => onSwipeTouchEnd(it.name)}
           >
-            {isDragging && <div className="ex-skip-bg">Skip</div>}
-            <button
-              className={`ex-row${t ? ' done' : ''}`}
-              style={{
-                transform: `translateX(${dx}px)`,
-                transition: isDragging ? 'none' : 'transform 0.2s ease',
-              }}
-              onClick={() => { if (!hasMoved.current) setEditing(it) }}
-            >
-              <span className={`ex-check${t ? ' on' : ''}`}>✓</span>
-              <span className="ex-main">
-                <div className="ex-name">{it.name}</div>
-                {t ? (
-                  <div className="ex-today">Today · {num(t.weight)} {unit}</div>
-                ) : p ? (
-                  <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
-                ) : (
-                  <div className="ex-prior">No history yet</div>
+            <div className="ex-swipe-inner">
+              {isDragging && <div className="ex-skip-bg">Skip</div>}
+              <button
+                className={`ex-row${t ? ' done' : ''}`}
+                style={{
+                  transform: `translateX(${dx}px)`,
+                  opacity: isDismissing ? 0 : 1,
+                  transition: isDragging
+                    ? 'none'
+                    : `transform ${DISMISS_MS}ms ease, opacity ${DISMISS_MS}ms ease`,
+                }}
+                onClick={() => { if (!hasMoved.current) setEditing(it) }}
+              >
+                <span className={`ex-check${t ? ' on' : ''}`}>✓</span>
+                <span className="ex-main">
+                  <div className="ex-name">{it.name}</div>
+                  {t ? (
+                    <div className="ex-today">Today · {num(t.weight)} {unit}</div>
+                  ) : p ? (
+                    <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
+                  ) : (
+                    <div className="ex-prior">No history yet</div>
+                  )}
+                </span>
+                {t && (
+                  isPR
+                    ? <span className="pr-badge">PR</span>
+                    : <span className="ex-weight">{num(t.weight)}</span>
                 )}
-              </span>
-              {t && (
-                isPR
-                  ? <span className="pr-badge">PR</span>
-                  : <span className="ex-weight">{num(t.weight)}</span>
-              )}
-            </button>
+              </button>
+            </div>
           </div>
         )
       })}
@@ -224,7 +247,7 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
 
 const PLATE_WEIGHTS = [45, 35, 25, 10, 5, 2.5]
 const BAR_WEIGHT = 45
-const ADJUSTMENTS = [-10, -5, +5, +10]
+const ADJUSTMENTS = [-5, -2.5, +2.5, +5]
 
 function LogSheet({
   item,
