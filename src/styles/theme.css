@@ -57,6 +57,25 @@ button {
   height: 100%;
 }
 
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--bg);
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--surface-3);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .screen {
   flex: 1;
   overflow-y: auto;
@@ -109,6 +128,10 @@ button {
   background: transparent;
   border: 1px solid var(--border-light);
   color: var(--text-dim);
+}
+.btn-danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
 }
 .btn-ghost {
   background: transparent;
@@ -289,6 +312,12 @@ body.sheet-open .tabbar {
   font-weight: 800;
   letter-spacing: -0.02em;
 }
+.confirm-message {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: -6px 0 18px;
+}
 @keyframes fade {
   from { opacity: 0; }
 }
@@ -374,6 +403,9 @@ body.sheet-open .tabbar {
   font-size: 21px;
   line-height: 1;
 }
+.tab-icon svg {
+  display: block;
+}
 
 /* ── Metrics / charts ── */
 .metric-card {
@@ -414,6 +446,41 @@ body.sheet-open .tabbar {
   border-radius: var(--radius);
   padding: 16px;
   margin-bottom: 18px;
+}
+
+.chart-interactive {
+  position: relative;
+}
+.chart-tooltip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  background: var(--surface-3);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 6px 10px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+.chart-tooltip-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.chart-tooltip-date {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+.chart-range {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
 }
 
 .entry-row {
@@ -530,6 +597,7 @@ body.sheet-open .tabbar {
 
 /* ── Completion banner ── */
 .complete-banner {
+  position: relative;
   background: rgba(52, 211, 153, 0.08);
   border: 1px solid var(--good);
   border-radius: var(--radius);
@@ -540,6 +608,34 @@ body.sheet-open .tabbar {
   color: var(--good);
   margin-bottom: 14px;
   letter-spacing: -0.01em;
+  animation: banner-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.complete-banner-text {
+  position: relative;
+  z-index: 1;
+}
+.confetti-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.confetti-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: confetti-pop 700ms ease-out forwards;
+}
+@keyframes banner-pop {
+  from { transform: scale(0.85); opacity: 0; }
+}
+@keyframes confetti-pop {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.3); opacity: 0; }
 }
 
 /* ── Done counter in header ── */

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Unit } from '../db/db'
 import { LineChart } from '../components/LineChart'
+import { ConfirmSheet } from '../components/ConfirmSheet'
 import { num, shortDate } from '../util/format'
 
 interface Props {
@@ -20,6 +22,9 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
   const points = sorted.map((l) => ({ date: l.date, value: l.weight }))
   const desc = [...sorted].reverse()
 
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const confirmingEntry = desc.find((e) => e.id === confirmingId)
+
   const deleteEntry = async (id: number) => {
     await db.logs.delete(id)
   }
@@ -32,7 +37,7 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
       </div>
 
       <div className="chart-wrap">
-        <LineChart points={points} height={180} />
+        <LineChart points={points} height={180} unit={unit} />
       </div>
 
       {desc.length === 0 && (
@@ -49,13 +54,22 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
                 className="btn-icon"
                 style={{ fontSize: 15, color: 'var(--danger)', padding: '4px 0 4px 10px' }}
                 aria-label="Delete"
-                onClick={() => e.id != null && deleteEntry(e.id)}
+                onClick={() => e.id != null && setConfirmingId(e.id)}
               >
                 ✕
               </button>
             </div>
           ))}
         </div>
+      )}
+
+      {confirmingEntry && (
+        <ConfirmSheet
+          title="Delete entry?"
+          message={`${num(confirmingEntry.weight)} ${unit} on ${shortDate(confirmingEntry.date)} will be removed.`}
+          onConfirm={() => deleteEntry(confirmingEntry.id!)}
+          onClose={() => setConfirmingId(null)}
+        />
       )}
     </div>
   )

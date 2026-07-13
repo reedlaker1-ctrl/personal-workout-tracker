@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addPhoto, deletePhoto } from '../db/db'
+import { ConfirmSheet } from '../components/ConfirmSheet'
 import { shortDate } from '../util/format'
 
 export function Photos() {
@@ -8,6 +9,7 @@ export function Photos() {
     useLiveQuery(() => db.photos.orderBy('date').reverse().toArray(), []) ?? []
   const fileRef = useRef<HTMLInputElement>(null)
   const [viewingIndex, setViewingIndex] = useState<number | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const touchStartX = useRef(0)
 
   // Select mode for sharing
@@ -156,15 +158,7 @@ export function Photos() {
           onTouchEnd={onLightboxTouchEnd}
         >
           <div className="photo-view-bar">
-            <button
-              className="del-link"
-              onClick={async () => {
-                if (confirm('Delete this photo?')) {
-                  await deletePhoto(viewingPhoto.id!)
-                  setViewingIndex(null)
-                }
-              }}
-            >
+            <button className="del-link" onClick={() => setConfirmingDelete(true)}>
               Delete
             </button>
             <span className="photo-position">{viewingIndex + 1} / {photos.length}</span>
@@ -194,6 +188,18 @@ export function Photos() {
             </button>
           </div>
         </div>
+      )}
+
+      {confirmingDelete && viewingPhoto && (
+        <ConfirmSheet
+          title="Delete photo?"
+          message={`The photo from ${shortDate(viewingPhoto.date)} will be removed.`}
+          onConfirm={async () => {
+            await deletePhoto(viewingPhoto.id!)
+            setViewingIndex(null)
+          }}
+          onClose={() => setConfirmingDelete(false)}
+        />
       )}
     </>
   )

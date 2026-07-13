@@ -8,6 +8,7 @@ import {
   type Unit,
 } from '../db/db'
 import { LineChart } from '../components/LineChart'
+import { ConfirmSheet } from '../components/ConfirmSheet'
 import { num, shortDate } from '../util/format'
 
 interface Props {
@@ -24,9 +25,12 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
       [metricId],
     ) ?? []
   const [val, setVal] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingEntryId, setConfirmingEntryId] = useState<number | null>(null)
 
   const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : 1))
   const desc = [...sorted].reverse()
+  const confirmingEntry = desc.find((e) => e.id === confirmingEntryId)
 
   const add = async () => {
     const v = parseFloat(val)
@@ -43,19 +47,14 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
         <button
           className="btn-icon"
           aria-label="Delete metric"
-          onClick={async () => {
-            if (confirm(`Delete "${metric?.name}" and all its entries?`)) {
-              await deleteMetric(metricId)
-              onBack()
-            }
-          }}
+          onClick={() => setConfirmingDelete(true)}
         >
           🗑
         </button>
       </div>
 
       <div className="chart-wrap">
-        <LineChart points={sorted} height={180} />
+        <LineChart points={sorted} height={180} unit={unit} />
       </div>
 
       <div className="row" style={{ marginBottom: 8 }}>
@@ -87,13 +86,31 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
               className="btn-icon"
               style={{ fontSize: 16 }}
               aria-label="Delete entry"
-              onClick={() => deleteMetricEntry(e.id!)}
+              onClick={() => setConfirmingEntryId(e.id!)}
             >
               ✕
             </button>
           </div>
         ))}
       </div>
+
+      {confirmingDelete && (
+        <ConfirmSheet
+          title="Delete metric?"
+          message={`"${metric?.name}" and all its entries will be removed.`}
+          onConfirm={async () => { await deleteMetric(metricId); onBack() }}
+          onClose={() => setConfirmingDelete(false)}
+        />
+      )}
+
+      {confirmingEntry && (
+        <ConfirmSheet
+          title="Delete entry?"
+          message={`${num(confirmingEntry.value)} ${unit} on ${shortDate(confirmingEntry.date)} will be removed.`}
+          onConfirm={() => deleteMetricEntry(confirmingEntry.id!)}
+          onClose={() => setConfirmingEntryId(null)}
+        />
+      )}
     </div>
   )
 }
