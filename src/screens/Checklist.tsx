@@ -28,6 +28,18 @@ interface Item {
   customId?: number
 }
 
+const CONFETTI_COLORS = ['#f59e0b', '#4f8cff', '#34d399', '#f87171']
+const CONFETTI = Array.from({ length: 10 }, (_, i) => {
+  const angle = (i / 10) * Math.PI * 2
+  const dist = 20 + (i % 3) * 6
+  return {
+    dx: Math.cos(angle) * dist,
+    dy: Math.sin(angle) * dist,
+    delay: (i % 4) * 40,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  }
+})
+
 export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
@@ -161,7 +173,21 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
 
       {isComplete && (
         <div className="complete-banner">
-          🎉 All done — great work!
+          <span className="confetti-burst" aria-hidden="true">
+            {CONFETTI.map((c, i) => (
+              <span
+                key={i}
+                className="confetti-dot"
+                style={{
+                  '--dx': `${c.dx}px`,
+                  '--dy': `${c.dy}px`,
+                  animationDelay: `${c.delay}ms`,
+                  background: c.color,
+                } as React.CSSProperties}
+              />
+            ))}
+          </span>
+          <span className="complete-banner-text">🎉 All done — great work!</span>
         </div>
       )}
 

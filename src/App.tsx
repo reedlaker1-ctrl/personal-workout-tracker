@@ -11,6 +11,14 @@ import { ExerciseDetail } from './screens/ExerciseDetail'
 import { Settings } from './screens/Settings'
 import { SplitSetup } from './screens/SplitSetup'
 
+function LoadingScreen() {
+  return (
+    <div className="app-loading">
+      <div className="spinner" />
+    </div>
+  )
+}
+
 export default function App() {
   const [tab, setTab] = useState<'workout' | 'progress'>('workout')
   const [dayId, setDayId] = useState<string | null>(null)
@@ -36,7 +44,7 @@ export default function App() {
     }
   }, [settings])
 
-  if (settings === undefined) return null
+  if (settings === undefined) return <LoadingScreen />
 
   if (showSetup) {
     return (
@@ -47,7 +55,7 @@ export default function App() {
   }
 
   // activeSplit should be defined after the seed effect fires, but guard just in case
-  if (!activeSplit) return null
+  if (!activeSplit) return <LoadingScreen />
 
   return (
     <div className="app">
