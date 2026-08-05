@@ -276,6 +276,10 @@ button {
 body.sheet-open .tabbar {
   display: none;
 }
+body.sheet-open .screen {
+  overflow: hidden;
+  touch-action: none;
+}
 
 .sheet-backdrop {
   position: fixed;
@@ -285,19 +289,32 @@ body.sheet-open .tabbar {
   align-items: flex-end;
   z-index: 100;
   animation: fade 0.15s ease;
+  overscroll-behavior: contain;
 }
 .sheet {
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   width: 100%;
   border-radius: 24px 24px 0 0;
-  padding: 10px 18px calc(env(safe-area-inset-bottom) + 28px);
+  padding-top: 10px;
   border-top: 1px solid var(--border-light);
   animation: slideup 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
 }
 .sheet-handle-area {
+  flex: none;
   padding: 6px 0 14px;
   margin: -6px 0 4px;
   touch-action: none;
+}
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 18px calc(env(safe-area-inset-bottom) + 28px);
 }
 .sheet-handle {
   width: 36px;

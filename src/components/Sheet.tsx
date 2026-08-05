@@ -87,6 +87,7 @@ export function Sheet({ title, onClose, children }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           marginBottom: keyboardOffset,
+          maxHeight: `calc(100dvh - ${keyboardOffset}px - env(safe-area-inset-top) - 32px)`,
           transform: `translateY(${translateY})`,
           transition: dragging ? 'none' : `transform ${DISMISS_MS}ms ease`,
         }}
@@ -99,8 +100,10 @@ export function Sheet({ title, onClose, children }: Props) {
         >
           <div className="sheet-handle" />
         </div>
-        <h3>{title}</h3>
-        {children}
+        <div className="sheet-scroll">
+          <h3>{title}</h3>
+          {children}
+        </div>
       </div>
     </div>
   )
