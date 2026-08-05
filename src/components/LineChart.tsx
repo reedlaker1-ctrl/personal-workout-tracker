@@ -36,8 +36,22 @@ export function LineChart({ points, height = 160, sparkline = false, unit = '' }
   if (min === max) { min -= 1; max += 1 }
 
   const n = points.length
+
+  // Position points by actual elapsed time rather than index, so a gap of
+  // three weeks between logs looks like a gap, not the same spacing as a
+  // gap of one day.
+  const times = points.map((p) => {
+    const [y, m, d] = p.date.split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
+  })
+  const timeMin = Math.min(...times)
+  const timeMax = Math.max(...times)
+  const timeRange = timeMax - timeMin
+
   const x = (i: number) =>
-    padX + (n === 1 ? (W - padX * 2) / 2 : (i / (n - 1)) * (W - padX * 2))
+    padX + (timeRange === 0
+      ? (n === 1 ? (W - padX * 2) / 2 : (i / (n - 1)) * (W - padX * 2))
+      : ((times[i] - timeMin) / timeRange) * (W - padX * 2))
   const y = (v: number) => padY + (1 - (v - min) / (max - min)) * (H - padY * 2)
 
   const linePath = points
