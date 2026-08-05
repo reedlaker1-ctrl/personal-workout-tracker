@@ -85,6 +85,16 @@ export function Photos() {
         onChange={onPick}
       />
 
+      {!selectMode && (
+        <button
+          className="btn btn-full fab-row"
+          style={{ marginBottom: 14 }}
+          onClick={() => fileRef.current?.click()}
+        >
+          + Add photo
+        </button>
+      )}
+
       {photos.length === 0 && (
         <div className="empty">Snap progress photos to see your changes over time.</div>
       )}
@@ -140,16 +150,6 @@ export function Photos() {
           )
         })}
       </div>
-
-      {!selectMode && (
-        <button
-          className="btn btn-full fab-row"
-          style={{ marginTop: 14 }}
-          onClick={() => fileRef.current?.click()}
-        >
-          + Add photo
-        </button>
-      )}
 
       {viewingPhoto && viewingIndex !== null && (
         <div
