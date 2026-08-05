@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, addMetric, type Unit } from '../db/db'
+import { db, addMetric, type MetricKind, type Unit } from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
@@ -139,13 +139,14 @@ function MetricsList({
           .filter((e) => e.metricId === m.id)
           .sort((a, b) => (a.date < b.date ? -1 : 1))
         const latest = pts[pts.length - 1]
+        const metricUnit = m.kind === 'reps' ? 'reps' : unit
         return (
           <button key={m.id} className="metric-card" onClick={() => onOpenMetric(m.id!)}>
             <span className="metric-info">
               <div className="metric-name">{m.name}</div>
               <div className="metric-latest">
                 {latest
-                  ? `${num(latest.value)} ${unit} · ${shortDate(latest.date)}`
+                  ? `${num(latest.value)} ${metricUnit} · ${shortDate(latest.date)}`
                   : 'No entries yet'}
               </div>
             </span>
@@ -167,9 +168,10 @@ function MetricsList({
 
 function AddMetricSheet({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
+  const [kind, setKind] = useState<MetricKind>('weight')
   const save = async () => {
     if (!name.trim()) return
-    await addMetric(name)
+    await addMetric(name, kind)
     onClose()
   }
   return (
@@ -177,11 +179,32 @@ function AddMetricSheet({ onClose }: { onClose: () => void }) {
       <input
         className="field"
         autoFocus
-        placeholder="e.g. Bodyweight, Max Bench"
+        placeholder="e.g. Bodyweight, Max Bench, Max Pull-ups"
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
+      <div className="mode-toggle">
+        <button
+          type="button"
+          className={`mode-btn${kind === 'weight' ? ' active' : ''}`}
+          onClick={() => setKind('weight')}
+        >
+          Weight
+        </button>
+        <button
+          type="button"
+          className={`mode-btn${kind === 'reps' ? ' active' : ''}`}
+          onClick={() => setKind('reps')}
+        >
+          Reps
+        </button>
+      </div>
+      <div className="subtle" style={{ margin: '-8px 0 16px', lineHeight: 1.5 }}>
+        {kind === 'reps'
+          ? 'Tracks a rep count — e.g. max consecutive push-ups or pull-ups.'
+          : 'Tracks a weight in your usual units — supports negative values for assisted exercises.'}
+      </div>
       <button className="btn btn-accent btn-full" onClick={save}>
         Add
       </button>

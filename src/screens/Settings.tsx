@@ -1,7 +1,16 @@
 import { useState } from 'react'
-import { setSetting, exportData, todayISO, type Unit } from '../db/db'
+import { useLiveQuery } from 'dexie-react-hooks'
+import {
+  setSetting,
+  exportData,
+  todayISO,
+  getExerciseKeysWithLogs,
+  flipExerciseSign,
+  type Unit,
+} from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
+import { ConfirmSheet } from '../components/ConfirmSheet'
 
 interface Props {
   split: Split | null
@@ -19,6 +28,7 @@ function hourLabel(h: number): string {
 
 export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }: Props) {
   const [exporting, setExporting] = useState(false)
+  const [flipping, setFlipping] = useState(false)
 
   const handleExport = async () => {
     setExporting(true)
@@ -80,6 +90,16 @@ export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }:
         A workout still going after midnight counts as the day before until this time.
       </div>
 
+      <div className="subtle" style={{ marginBottom: 8 }}>Exercises</div>
+      <button
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
+        onClick={() => setFlipping(true)}
+      >
+        <span style={{ fontSize: 18 }}>±</span>
+        Flip exercise sign
+      </button>
+
       <div className="subtle" style={{ marginBottom: 8 }}>Data</div>
       <button
         className="btn btn-full"
@@ -93,6 +113,49 @@ export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }:
       <div className="subtle" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5 }}>
         Downloads all workout logs, metrics, and your split config. Drop the file into any AI chat to get analysis, insights, or programming suggestions.
       </div>
+
+      {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
+    </Sheet>
+  )
+}
+
+function FlipSignSheet({ onClose }: { onClose: () => void }) {
+  const exerciseKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  return (
+    <Sheet title="Flip exercise sign" onClose={onClose}>
+      <div className="subtle" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        Multiplies every logged weight for an exercise by -1 — useful for switching an
+        assisted exercise (like assisted pull-ups) between positive and negative tracking
+        without re-entering history.
+      </div>
+
+      {exerciseKeys.length === 0 && (
+        <div className="empty">No logged exercises yet.</div>
+      )}
+
+      {exerciseKeys.map((key) => (
+        <button
+          key={key}
+          className="day-card"
+          style={{ padding: 14, marginBottom: 9 }}
+          onClick={() => setConfirming(key)}
+        >
+          <span className="day-card-name" style={{ fontSize: 16 }}>{key}</span>
+          <span className="chev">›</span>
+        </button>
+      ))}
+
+      {confirming && (
+        <ConfirmSheet
+          title="Flip sign?"
+          message={`Every logged weight for "${confirming}" will be multiplied by -1.`}
+          confirmLabel="Flip"
+          onConfirm={() => flipExerciseSign(confirming)}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </Sheet>
   )
 }

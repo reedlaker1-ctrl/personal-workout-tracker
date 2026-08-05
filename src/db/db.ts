@@ -24,9 +24,13 @@ export interface WorkoutLog {
   date: string // ISO date string (YYYY-MM-DD)
 }
 
+export type MetricKind = 'weight' | 'reps'
+
 export interface Metric {
   id?: number
   name: string
+  // Missing on metrics created before this field existed — treat as 'weight'.
+  kind?: MetricKind
 }
 
 export interface MetricEntry {
@@ -154,6 +158,24 @@ export async function deleteTodayLog(exerciseKey: string, dayId: string): Promis
   if (existing?.id != null) await db.logs.delete(existing.id)
 }
 
+/** Distinct exercise names that have at least one logged entry. */
+export async function getExerciseKeysWithLogs(): Promise<string[]> {
+  const logs = await db.logs.toArray()
+  return [...new Set(logs.map((l) => l.exerciseKey))].sort((a, b) => a.localeCompare(b))
+}
+
+/** Multiplies every logged weight for an exercise by -1 — for retroactively
+ *  switching an assisted exercise (e.g. assisted pull-ups) between positive
+ *  and negative tracking without re-entering history. */
+export async function flipExerciseSign(exerciseKey: string): Promise<void> {
+  const logs = await db.logs.where('exerciseKey').equals(exerciseKey).toArray()
+  await db.transaction('rw', db.logs, async () => {
+    for (const log of logs) {
+      if (log.id != null) await db.logs.update(log.id, { weight: -log.weight })
+    }
+  })
+}
+
 export async function renameExerciseKey(oldKey: string, newKey: string): Promise<void> {
   await db.transaction('rw', db.logs, db.customExercises, async () => {
     await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
@@ -174,8 +196,8 @@ export async function removeCustomExercise(id: number): Promise<void> {
 }
 
 // ── Metrics ──
-export async function addMetric(name: string): Promise<number> {
-  return (await db.metrics.add({ name: name.trim() })) as number
+export async function addMetric(name: string, kind: MetricKind = 'weight'): Promise<number> {
+  return (await db.metrics.add({ name: name.trim(), kind })) as number
 }
 
 export async function deleteMetric(id: number): Promise<void> {

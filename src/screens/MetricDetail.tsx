@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
@@ -27,6 +27,10 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
   const [val, setVal] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [confirmingEntryId, setConfirmingEntryId] = useState<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const isReps = metric?.kind === 'reps'
+  const metricUnit = isReps ? 'reps' : unit
 
   const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : 1))
   const desc = [...sorted].reverse()
@@ -37,6 +41,13 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
     if (!isFinite(v)) return
     await addMetricEntry(metricId, v)
     setVal('')
+  }
+
+  // iOS's decimal numeric keypad has no minus key, so negative entry (for
+  // assisted exercises tracked as a metric) needs an explicit toggle.
+  const toggleSign = () => {
+    setVal((v) => (v.startsWith('-') ? v.slice(1) : v ? `-${v}` : v))
+    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   return (
@@ -54,16 +65,27 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
       </div>
 
       <div className="chart-wrap">
-        <LineChart points={sorted} height={180} unit={unit} />
+        <LineChart points={sorted} height={180} unit={metricUnit} />
       </div>
 
       <div className="row" style={{ marginBottom: 8 }}>
+        {!isReps && (
+          <button
+            type="button"
+            className="btn sign-toggle"
+            aria-label="Toggle negative (for assisted exercises)"
+            onClick={toggleSign}
+          >
+            ±
+          </button>
+        )}
         <input
+          ref={inputRef}
           className="field"
           style={{ marginBottom: 0 }}
           type="number"
           inputMode="decimal"
-          placeholder={`New value (${unit})`}
+          placeholder={`New value (${metricUnit})`}
           value={val}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
@@ -79,7 +101,7 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
         {desc.map((e) => (
           <div key={e.id} className="entry-row">
             <span className="entry-val">
-              {num(e.value)} {unit}
+              {num(e.value)} {metricUnit}
             </span>
             <span className="entry-date">{shortDate(e.date)}</span>
             <button
@@ -106,7 +128,7 @@ export function MetricDetail({ metricId, unit, onBack }: Props) {
       {confirmingEntry && (
         <ConfirmSheet
           title="Delete entry?"
-          message={`${num(confirmingEntry.value)} ${unit} on ${shortDate(confirmingEntry.date)} will be removed.`}
+          message={`${num(confirmingEntry.value)} ${metricUnit} on ${shortDate(confirmingEntry.date)} will be removed.`}
           onConfirm={() => deleteMetricEntry(confirmingEntry.id!)}
           onClose={() => setConfirmingEntryId(null)}
         />
