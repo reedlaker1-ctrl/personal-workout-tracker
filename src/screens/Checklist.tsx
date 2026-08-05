@@ -302,7 +302,14 @@ function LogSheet({
 
   const quickAdjust = (delta: number) => {
     const current = parseFloat(val) || 0
-    setVal(num(Math.max(0, current + delta)))
+    setVal(num(current + delta))
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  // iOS's decimal numeric keypad has no minus key, so negative entry (for
+  // assisted exercises like assisted pull-ups/dips) needs an explicit toggle.
+  const toggleSign = () => {
+    setVal((v) => (v.startsWith('-') ? v.slice(1) : v ? `-${v}` : v))
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
@@ -312,7 +319,7 @@ function LogSheet({
 
   const save = async () => {
     const w = mode === 'plates' ? calcWeight : parseFloat(val)
-    if (!isFinite(w) || w <= 0) return
+    if (!isFinite(w)) return
     await logWeight(item.name, dayId, w)
     onClose()
   }
@@ -330,18 +337,29 @@ function LogSheet({
 
       {mode === 'weight' ? (
         <>
-          <input
-            ref={inputRef}
-            className="field"
-            type="number"
-            inputMode="decimal"
-            autoFocus
-            placeholder={`Weight (${unit})`}
-            value={val}
-            onChange={(e) => setVal(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-          />
+          <div className="row" style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              className="btn sign-toggle"
+              aria-label="Toggle negative (for assisted exercises)"
+              onClick={toggleSign}
+            >
+              ±
+            </button>
+            <input
+              ref={inputRef}
+              className="field"
+              style={{ marginBottom: 0 }}
+              type="number"
+              inputMode="decimal"
+              autoFocus
+              placeholder={`Weight (${unit})`}
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+            />
+          </div>
           <div className="weight-adjusters">
             {ADJUSTMENTS.map((d) => (
               <button
