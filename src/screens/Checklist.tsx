@@ -23,6 +23,7 @@ interface Props {
   dayRolloverHour: number
   nudgeSessions: number
   nudgeWeeks: number
+  nudgeEnabled: boolean
   onBack: () => void
 }
 
@@ -43,7 +44,16 @@ const CONFETTI = Array.from({ length: 10 }, (_, i) => {
   }
 })
 
-export function Checklist({ split, dayId, unit, dayRolloverHour, nudgeSessions, nudgeWeeks, onBack }: Props) {
+export function Checklist({
+  split,
+  dayId,
+  unit,
+  dayRolloverHour,
+  nudgeSessions,
+  nudgeWeeks,
+  nudgeEnabled,
+  onBack,
+}: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
   const custom =
@@ -202,7 +212,7 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, nudgeSessions, 
         const isDragging = activeDrag?.name === it.name
         const isDismissing = dismissing === it.name
         const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
-        const showNudge = !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
+        const showNudge = nudgeEnabled && !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
 
         return (
           <div

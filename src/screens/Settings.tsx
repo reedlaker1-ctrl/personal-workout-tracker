@@ -18,6 +18,7 @@ interface Props {
   dayRolloverHour: number
   nudgeSessions: number
   nudgeWeeks: number
+  nudgeEnabled: boolean
   onClose: () => void
   onEditSplit: () => void
 }
@@ -36,6 +37,7 @@ export function Settings({
   dayRolloverHour,
   nudgeSessions,
   nudgeWeeks,
+  nudgeEnabled,
   onClose,
   onEditSplit,
 }: Props) {
@@ -102,33 +104,52 @@ export function Settings({
         A workout still going after midnight counts as the day before until this time.
       </div>
 
-      <div className="subtle" style={{ marginBottom: 8 }}>Plateau highlight after</div>
-      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
-        {NUDGE_SESSION_OPTIONS.map((n) => (
-          <button
-            key={n}
-            className={`btn${n === nudgeSessions ? ' btn-accent' : ''}`}
-            onClick={() => setSetting('nudgeSessions', String(n))}
-          >
-            {n} sessions
-          </button>
-        ))}
+      <div className="subtle" style={{ marginBottom: 8 }}>Plateau highlight</div>
+      <div className="row" style={{ marginBottom: nudgeEnabled ? 12 : 24 }}>
+        <button
+          className={`btn${!nudgeEnabled ? ' btn-accent' : ''}`}
+          onClick={() => setSetting('nudgeEnabled', 'false')}
+        >
+          Never
+        </button>
+        <button
+          className={`btn${nudgeEnabled ? ' btn-accent' : ''}`}
+          onClick={() => setSetting('nudgeEnabled', 'true')}
+        >
+          After
+        </button>
       </div>
-      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
-        {NUDGE_WEEK_OPTIONS.map((w) => (
-          <button
-            key={w}
-            className={`btn${w === nudgeWeeks ? ' btn-accent' : ''}`}
-            onClick={() => setSetting('nudgeWeeks', String(w))}
-          >
-            {w} {w === 1 ? 'week' : 'weeks'}
-          </button>
-        ))}
-      </div>
-      <div className="subtle" style={{ marginBottom: 24, fontSize: 12, lineHeight: 1.5 }}>
-        An exercise's last weight is highlighted once it's held steady for both this many
-        sessions and this many weeks — whichever takes longer.
-      </div>
+
+      {nudgeEnabled && (
+        <>
+          <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+            {NUDGE_SESSION_OPTIONS.map((n) => (
+              <button
+                key={n}
+                className={`btn${n === nudgeSessions ? ' btn-accent' : ''}`}
+                onClick={() => setSetting('nudgeSessions', String(n))}
+              >
+                {n} sessions
+              </button>
+            ))}
+          </div>
+          <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+            {NUDGE_WEEK_OPTIONS.map((w) => (
+              <button
+                key={w}
+                className={`btn${w === nudgeWeeks ? ' btn-accent' : ''}`}
+                onClick={() => setSetting('nudgeWeeks', String(w))}
+              >
+                {w} {w === 1 ? 'week' : 'weeks'}
+              </button>
+            ))}
+          </div>
+          <div className="subtle" style={{ marginBottom: 24, fontSize: 12, lineHeight: 1.5 }}>
+            An exercise's last weight is highlighted once it's held steady for both this many
+            sessions and this many weeks — whichever takes longer.
+          </div>
+        </>
+      )}
 
       <div className="subtle" style={{ marginBottom: 8 }}>Exercises</div>
       <button
@@ -150,9 +171,21 @@ export function Settings({
         <span style={{ fontSize: 18 }}>↓</span>
         {exporting ? 'Exporting…' : 'Export data as JSON'}
       </button>
-      <div className="subtle" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5 }}>
+      <div className="subtle" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, marginBottom: 24 }}>
         Downloads all workout logs, metrics, and your split config. Drop the file into any AI chat to get analysis, insights, or programming suggestions.
       </div>
+
+      <div className="subtle" style={{ marginBottom: 8 }}>Support</div>
+      <a
+        href="https://venmo.com/u/reed-laker"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, textDecoration: 'none', color: 'var(--text)' }}
+      >
+        <span style={{ fontSize: 18 }}>💸</span>
+        Tip the developer
+      </a>
 
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
     </Sheet>

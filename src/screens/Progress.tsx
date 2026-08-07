@@ -12,13 +12,22 @@ interface Props {
   split: Split
   nudgeSessions: number
   nudgeWeeks: number
+  nudgeEnabled: boolean
   onOpenMetric: (id: number) => void
   onOpenExercise: (key: string) => void
 }
 
 type Seg = 'exercises' | 'metrics' | 'photos'
 
-export function Progress({ unit, split, nudgeSessions, nudgeWeeks, onOpenMetric, onOpenExercise }: Props) {
+export function Progress({
+  unit,
+  split,
+  nudgeSessions,
+  nudgeWeeks,
+  nudgeEnabled,
+  onOpenMetric,
+  onOpenExercise,
+}: Props) {
   const [seg, setSeg] = useState<Seg>('exercises')
 
   return (
@@ -39,6 +48,7 @@ export function Progress({ unit, split, nudgeSessions, nudgeWeeks, onOpenMetric,
           unit={unit}
           nudgeSessions={nudgeSessions}
           nudgeWeeks={nudgeWeeks}
+          nudgeEnabled={nudgeEnabled}
           onOpenExercise={onOpenExercise}
         />
       )}
@@ -55,12 +65,14 @@ function ExercisesList({
   unit,
   nudgeSessions,
   nudgeWeeks,
+  nudgeEnabled,
   onOpenExercise,
 }: {
   split: Split
   unit: Unit
   nudgeSessions: number
   nudgeWeeks: number
+  nudgeEnabled: boolean
   onOpenExercise: (key: string) => void
 }) {
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
@@ -101,7 +113,7 @@ function ExercisesList({
                 .sort((a, b) => (a.date < b.date ? -1 : 1))
               const points = logs.map((l) => ({ date: l.date, value: l.weight }))
               const latest = logs[logs.length - 1]
-              const showNudge = isWeightStagnant(logs, nudgeSessions, nudgeWeeks)
+              const showNudge = nudgeEnabled && isWeightStagnant(logs, nudgeSessions, nudgeWeeks)
 
               return (
                 <button
