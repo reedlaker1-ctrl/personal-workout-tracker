@@ -9,6 +9,7 @@ import {
   removeCustomExercise,
   setSetting,
   todayISO,
+  isWeightStagnant,
   type Unit,
   type WorkoutLog,
 } from '../db/db'
@@ -20,6 +21,8 @@ interface Props {
   dayId: string
   unit: Unit
   dayRolloverHour: number
+  nudgeSessions: number
+  nudgeWeeks: number
   onBack: () => void
 }
 
@@ -40,7 +43,7 @@ const CONFETTI = Array.from({ length: 10 }, (_, i) => {
   }
 })
 
-export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props) {
+export function Checklist({ split, dayId, unit, dayRolloverHour, nudgeSessions, nudgeWeeks, onBack }: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
   const custom =
@@ -199,6 +202,7 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
         const isDragging = activeDrag?.name === it.name
         const isDismissing = dismissing === it.name
         const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
+        const showNudge = !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
 
         return (
           <div
@@ -211,7 +215,7 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
             <div className="ex-swipe-inner">
               {isDragging && <div className="ex-skip-bg">Skip</div>}
               <button
-                className={`ex-row${t ? ' done' : ''}`}
+                className={`ex-row${t ? ' done' : ''}${showNudge ? ' nudge' : ''}`}
                 style={{
                   transform: `translateX(${dx}px)`,
                   opacity: isDismissing ? 0 : 1,
@@ -227,7 +231,9 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
                   {t ? (
                     <div className="ex-today">Today · {num(t.weight)} {unit}</div>
                   ) : p ? (
-                    <div className="ex-prior">Last: {num(p.weight)} {unit} · {relativeDate(p.date)}</div>
+                    <div className={`ex-prior${showNudge ? ' nudge' : ''}`}>
+                      Last: {num(p.weight)} {unit} · {relativeDate(p.date)}
+                    </div>
                   ) : (
                     <div className="ex-prior">No history yet</div>
                   )}

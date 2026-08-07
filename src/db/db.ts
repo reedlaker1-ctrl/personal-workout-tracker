@@ -47,6 +47,16 @@ export interface ProgressPhoto {
   caption?: string
 }
 
+// No longer used by the app (the "push heavier" highlight is now computed
+// live from log history instead of persisted per-exercise state), but the
+// table stays declared so any database already upgraded to version 2 still
+// opens cleanly.
+interface ExerciseNudge {
+  exerciseKey: string
+  active: boolean
+  snoozeRemaining: number
+}
+
 // ─── Database ────────────────────────────────────────────────────────────────
 
 class WorkoutDB extends Dexie {
@@ -56,6 +66,7 @@ class WorkoutDB extends Dexie {
   metrics!: Table<Metric, number>
   metricEntries!: Table<MetricEntry, number>
   photos!: Table<ProgressPhoto, number>
+  exerciseNudges!: Table<ExerciseNudge, string>
 
   constructor() {
     super('workout-app')
@@ -66,6 +77,15 @@ class WorkoutDB extends Dexie {
       metrics: '++id',
       metricEntries: '++id, metricId, date',
       photos: '++id, date',
+    })
+    this.version(2).stores({
+      settings: 'key',
+      customExercises: '++id, dayId',
+      logs: '++id, exerciseKey, dayId, date',
+      metrics: '++id',
+      metricEntries: '++id, metricId, date',
+      photos: '++id, date',
+      exerciseNudges: 'exerciseKey',
     })
   }
 }
@@ -184,6 +204,42 @@ export async function renameExerciseKey(oldKey: string, newKey: string): Promise
       await db.customExercises.update(c.id!, { name: newKey })
     }
   })
+}
+
+// ── "Push heavier" highlight ──
+// A plateau only counts once the current same-weight streak is both long
+// enough (a handful of sessions — not a one-off repeat) and old enough (a
+// few weeks — so someone training an exercise 2x/week isn't flagged after
+// a single week, while someone who trains it rarely still gets flagged
+// once they've genuinely sat still for a while). Both thresholds are
+// user-configurable in Settings.
+export const DEFAULT_NUDGE_SESSIONS = 3
+export const DEFAULT_NUDGE_WEEKS = 2
+
+function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000)
+}
+
+/** True once an exercise's most recent weight has held steady for both
+ *  `minSessions` sessions and `minWeeks` weeks. Pure function over
+ *  already-loaded logs — no highlight state is persisted anywhere. */
+export function isWeightStagnant(
+  logs: WorkoutLog[],
+  minSessions: number,
+  minWeeks: number,
+): boolean {
+  if (logs.length < minSessions) return false
+  const byDate = [...logs].sort((a, b) => (a.date < b.date ? -1 : 1))
+
+  const latestWeight = byDate[byDate.length - 1].weight
+  let streakStart = byDate.length - 1
+  while (streakStart > 0 && byDate[streakStart - 1].weight === latestWeight) streakStart--
+  const streak = byDate.slice(streakStart)
+
+  if (streak.length < minSessions) return false
+  return daysBetween(streak[0].date, streak[streak.length - 1].date) >= minWeeks * 7
 }
 
 // ── Custom exercises ──

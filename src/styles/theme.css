@@ -13,6 +13,7 @@
   --good: #34d399;
   --good-dim: #0d3325;
   --danger: #f87171;
+  --nudge: #f59e0b;
   --radius: 16px;
   --tab-h: 64px;
 
@@ -224,6 +225,9 @@ button {
   border-color: var(--good);
   background: rgba(52, 211, 153, 0.05);
 }
+.ex-row.nudge {
+  border-color: var(--nudge);
+}
 .ex-check {
   width: 26px;
   height: 26px;
@@ -258,6 +262,10 @@ button {
   color: var(--text-dim);
   font-size: 13px;
   margin-top: 2px;
+}
+.ex-prior.nudge {
+  color: var(--nudge);
+  font-weight: 700;
 }
 .ex-today {
   color: var(--good);
@@ -446,6 +454,9 @@ body.sheet-open .screen {
   color: var(--text);
   transition: border-color 0.15s;
 }
+.metric-card.nudge {
+  border-color: var(--nudge);
+}
 .metric-info {
   flex: 1;
   min-width: 0;
@@ -462,6 +473,10 @@ body.sheet-open .screen {
   color: var(--text-dim);
   font-size: 13px;
   margin-top: 2px;
+}
+.metric-latest.nudge {
+  color: var(--nudge);
+  font-weight: 700;
 }
 
 .chart-wrap {
