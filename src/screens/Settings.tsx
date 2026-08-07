@@ -264,14 +264,37 @@ export function Settings({
 
       <div className="subtle" style={{ marginBottom: 8 }}>Support</div>
       <a
+        href="sms:+18019998132"
+        className="btn btn-full"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 10,
+          textDecoration: 'none',
+          color: 'var(--text)',
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 18 }}>💬</span>
+        Questions or suggestions? Text +1 (801) 999-8132
+      </a>
+      <a
         href="https://venmo.com/u/reed-laker"
         target="_blank"
         rel="noopener noreferrer"
         className="btn btn-full"
-        style={{ justifyContent: 'flex-start', gap: 10, textDecoration: 'none', color: 'var(--text)' }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 10,
+          textDecoration: 'none',
+          color: 'var(--text)',
+        }}
       >
         <span style={{ fontSize: 18 }}>💸</span>
-        Tip the developer
+        Enjoying the app? Tip the developer
       </a>
 
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
