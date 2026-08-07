@@ -25,6 +25,7 @@ interface Props {
   nudgeEnabled: boolean
   onClose: () => void
   onEditSplit: () => void
+  onOpenHelp: () => void
 }
 
 const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5]
@@ -44,6 +45,7 @@ export function Settings({
   nudgeEnabled,
   onClose,
   onEditSplit,
+  onOpenHelp,
 }: Props) {
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
@@ -114,6 +116,18 @@ export function Settings({
 
   return (
     <Sheet title="Settings" onClose={onClose}>
+      <button
+        className="day-card"
+        style={{ marginBottom: 24 }}
+        onClick={() => { onClose(); onOpenHelp() }}
+      >
+        <span>
+          <div className="day-card-name">How to use this app</div>
+          <div className="day-card-sub">What it does and how it works</div>
+        </span>
+        <span className="chev">›</span>
+      </button>
+
       <div className="subtle" style={{ marginBottom: 8 }}>Split</div>
       <button
         className="day-card"

@@ -17,6 +17,7 @@ import { MetricDetail } from './screens/MetricDetail'
 import { ExerciseDetail } from './screens/ExerciseDetail'
 import { Settings } from './screens/Settings'
 import { SplitSetup } from './screens/SplitSetup'
+import { Help } from './screens/Help'
 
 function LoadingScreen() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
   const [exerciseKey, setExerciseKey] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showSetup, setShowSetup] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
 
   const settings = useLiveQuery(() => db.settings.toArray(), [])
   const unit = (settings?.find((s) => s.key === 'unit')?.value ?? 'lb') as Unit
@@ -64,6 +66,14 @@ export default function App() {
     return (
       <div className="app">
         <SplitSetup initialSplit={activeSplit ?? undefined} onDone={() => setShowSetup(false)} />
+      </div>
+    )
+  }
+
+  if (showHelp) {
+    return (
+      <div className="app">
+        <Help onDone={() => setShowHelp(false)} />
       </div>
     )
   }
@@ -138,6 +148,7 @@ export default function App() {
           nudgeEnabled={nudgeEnabled}
           onClose={() => setShowSettings(false)}
           onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
+          onOpenHelp={() => { setShowSettings(false); setShowHelp(true) }}
         />
       )}
     </div>
