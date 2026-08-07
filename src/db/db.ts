@@ -281,6 +281,10 @@ export async function deletePhoto(id: number): Promise<void> {
 }
 
 // ── Export ──
+
+/** Logs, metrics, and split — no photos. Meant for pasting into an AI chat
+ *  for analysis, so it stays small and readable rather than carrying along
+ *  base64 photo data. */
 export async function exportData(): Promise<string> {
   const [logs, metrics, metricEntries, settings] = await Promise.all([
     db.logs.toArray(),
@@ -301,4 +305,122 @@ export async function exportData(): Promise<string> {
   }
 
   return JSON.stringify(payload, null, 2)
+}
+
+// ── Backup / restore ──
+// The backup format's shape, bumped whenever a field is added or removed so
+// restoreData() can tell old backups apart from new ones if that's ever needed.
+const BACKUP_FORMAT_VERSION = 1
+
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+interface BackupPayload {
+  formatVersion?: number
+  exportDate: string
+  split: unknown
+  workoutLogs: WorkoutLog[]
+  metrics: Metric[]
+  metricEntries: MetricEntry[]
+  customExercises: CustomExercise[]
+  photos: { date: string; caption?: string; dataUrl: string }[]
+}
+
+/** Everything needed to fully restore the app on a new device: logs,
+ *  metrics, custom exercises, the split, and progress photos (inlined as
+ *  data URLs so the whole backup is a single portable JSON file). Distinct
+ *  from exportData(), which stays lean for pasting into an AI chat. */
+export async function exportBackup(): Promise<string> {
+  const [logs, metrics, metricEntries, customExercises, photos, settings] = await Promise.all([
+    db.logs.toArray(),
+    db.metrics.toArray(),
+    db.metricEntries.toArray(),
+    db.customExercises.toArray(),
+    db.photos.toArray(),
+    db.settings.toArray(),
+  ])
+
+  const userSplitJson = settings.find((s) => s.key === 'userSplit')?.value
+  const split = userSplitJson ? JSON.parse(userSplitJson) : null
+
+  const payload: BackupPayload = {
+    formatVersion: BACKUP_FORMAT_VERSION,
+    exportDate: todayISO(await getDayRolloverHour()),
+    split,
+    workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    metrics,
+    metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    customExercises,
+    photos: await Promise.all(
+      photos.map(async (p) => ({ date: p.date, caption: p.caption, dataUrl: await blobToDataURL(p.blob) })),
+    ),
+  }
+
+  return JSON.stringify(payload)
+}
+
+/** Replaces all current logs, metrics, custom exercises, the split, and
+ *  photos with what's in a previously exported backup file. */
+export async function restoreData(json: string): Promise<void> {
+  const payload = JSON.parse(json) as Partial<BackupPayload>
+
+  // Decode photo data URLs to Blobs *before* opening the transaction — fetch()
+  // isn't a Dexie-tracked operation, and awaiting one inside a transaction
+  // callback makes IndexedDB commit the transaction prematurely.
+  const photoBlobs = payload.photos?.length
+    ? await Promise.all(
+        payload.photos.map(async (p) => ({
+          date: p.date,
+          caption: p.caption,
+          blob: await (await fetch(p.dataUrl)).blob(),
+        })),
+      )
+    : []
+
+  await db.transaction(
+    'rw',
+    [db.logs, db.metrics, db.metricEntries, db.customExercises, db.photos, db.settings],
+    async () => {
+      await Promise.all([
+        db.logs.clear(),
+        db.metrics.clear(),
+        db.metricEntries.clear(),
+        db.customExercises.clear(),
+        db.photos.clear(),
+      ])
+
+      if (payload.split) {
+        await db.settings.put({ key: 'userSplit', value: JSON.stringify(payload.split) })
+      }
+
+      if (payload.workoutLogs?.length) {
+        await db.logs.bulkAdd(payload.workoutLogs.map(({ id: _id, ...rest }) => rest))
+      }
+
+      if (payload.customExercises?.length) {
+        await db.customExercises.bulkAdd(payload.customExercises.map(({ id: _id, ...rest }) => rest))
+      }
+
+      if (payload.metrics?.length) {
+        const idMap = new Map<number, number>()
+        for (const m of payload.metrics) {
+          const { id: oldId, ...rest } = m
+          const newId = await db.metrics.add(rest)
+          if (oldId != null) idMap.set(oldId, newId as number)
+        }
+        const remappedEntries = (payload.metricEntries ?? [])
+          .map(({ id: _id, metricId, ...rest }) => ({ ...rest, metricId: idMap.get(metricId) }))
+          .filter((e): e is MetricEntry => e.metricId != null)
+        if (remappedEntries.length) await db.metricEntries.bulkAdd(remappedEntries)
+      }
+
+      if (photoBlobs.length) await db.photos.bulkAdd(photoBlobs)
+    },
+  )
 }

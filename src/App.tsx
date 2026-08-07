@@ -45,6 +45,7 @@ export default function App() {
   const nudgeWeeks = Number(
     settings?.find((s) => s.key === 'nudgeWeeks')?.value ?? DEFAULT_NUDGE_WEEKS,
   )
+  const nudgeEnabled = (settings?.find((s) => s.key === 'nudgeEnabled')?.value ?? 'true') === 'true'
 
   const userSplitJson = settings?.find((s) => s.key === 'userSplit')?.value
   const activeSplit: Split | null = userSplitJson ? (JSON.parse(userSplitJson) as Split) : null
@@ -81,6 +82,7 @@ export default function App() {
             dayRolloverHour={dayRolloverHour}
             nudgeSessions={nudgeSessions}
             nudgeWeeks={nudgeWeeks}
+            nudgeEnabled={nudgeEnabled}
             onBack={() => setDayId(null)}
           />
         ) : (
@@ -111,6 +113,7 @@ export default function App() {
             split={activeSplit}
             nudgeSessions={nudgeSessions}
             nudgeWeeks={nudgeWeeks}
+            nudgeEnabled={nudgeEnabled}
             onOpenMetric={setMetricId}
             onOpenExercise={setExerciseKey}
           />
@@ -132,6 +135,7 @@ export default function App() {
           dayRolloverHour={dayRolloverHour}
           nudgeSessions={nudgeSessions}
           nudgeWeeks={nudgeWeeks}
+          nudgeEnabled={nudgeEnabled}
           onClose={() => setShowSettings(false)}
           onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
         />
