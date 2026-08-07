@@ -53,7 +53,9 @@ function ExercisesList({
 }) {
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
   const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const nudges = useLiveQuery(() => db.exerciseNudges.toArray(), []) ?? []
   const withData = new Set(allLogs.map((l) => l.exerciseKey))
+  const nudgeActiveFor = (name: string) => nudges.some((n) => n.exerciseKey === name && n.active)
 
   const hasAnyData = split.days.some((day) => {
     const names = [
@@ -89,12 +91,17 @@ function ExercisesList({
                 .sort((a, b) => (a.date < b.date ? -1 : 1))
               const points = logs.map((l) => ({ date: l.date, value: l.weight }))
               const latest = logs[logs.length - 1]
+              const showNudge = nudgeActiveFor(name)
 
               return (
-                <button key={name} className="metric-card" onClick={() => onOpenExercise(name)}>
+                <button
+                  key={name}
+                  className={`metric-card${showNudge ? ' nudge' : ''}`}
+                  onClick={() => onOpenExercise(name)}
+                >
                   <span className="metric-info">
                     <div className="metric-name">{name}</div>
-                    <div className="metric-latest">
+                    <div className={`metric-latest${showNudge ? ' nudge' : ''}`}>
                       {latest
                         ? `${num(latest.weight)} ${unit} · ${shortDate(latest.date)}`
                         : 'No logs yet'}
