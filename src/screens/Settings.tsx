@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  db,
   setSetting,
   exportData,
+  exportBackup,
+  restoreData,
   todayISO,
   getExerciseKeysWithLogs,
   flipExerciseSign,
@@ -11,6 +14,7 @@ import {
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { ConfirmSheet } from '../components/ConfirmSheet'
+import { relativeDate } from '../util/format'
 
 interface Props {
   split: Split | null
@@ -43,6 +47,16 @@ export function Settings({
 }: Props) {
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
+  const [restoreJson, setRestoreJson] = useState<string | null>(null)
+  const restoreFileRef = useRef<HTMLInputElement>(null)
+
+  const lastBackupSetting = useLiveQuery(() => db.settings.get('lastBackupDate'), [])
+  const lastBackupDate = lastBackupSetting?.value
+  const daysSinceBackup = lastBackupDate
+    ? Math.round((Date.now() - new Date(lastBackupDate).getTime()) / 86400000)
+    : null
+  const backupOverdue = daysSinceBackup == null || daysSinceBackup >= 14
 
   const handleExport = async () => {
     setExporting(true)
@@ -58,6 +72,44 @@ export function Settings({
     } finally {
       setExporting(false)
     }
+  }
+
+  const handleBackup = async () => {
+    setBackingUp(true)
+    try {
+      const json = await exportBackup()
+      const file = new File([json], `workout-backup-${todayISO(dayRolloverHour)}.json`, {
+        type: 'application/json',
+      })
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Workout backup' })
+        } catch {
+          return // user cancelled the share sheet — don't mark it as backed up
+        }
+      } else {
+        const url = URL.createObjectURL(file)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+
+      await setSetting('lastBackupDate', todayISO(dayRolloverHour))
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  const onPickRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setRestoreJson(reader.result as string)
+    reader.readAsText(file)
   }
 
   return (
@@ -175,6 +227,41 @@ export function Settings({
         Downloads all workout logs, metrics, and your split config. Drop the file into any AI chat to get analysis, insights, or programming suggestions.
       </div>
 
+      <div className="subtle" style={{ marginBottom: 8 }}>Backup</div>
+      <button
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10 }}
+        onClick={handleBackup}
+        disabled={backingUp}
+      >
+        <span style={{ fontSize: 18 }}>☁️</span>
+        {backingUp ? 'Backing up…' : 'Back up now'}
+      </button>
+      <div
+        className={`subtle${backupOverdue ? ' nudge' : ''}`}
+        style={{ marginTop: 6, fontSize: 12, fontWeight: backupOverdue ? 700 : 400 }}
+      >
+        {lastBackupDate ? `Last backup ${relativeDate(lastBackupDate)}` : 'Never backed up'}
+      </div>
+      <div className="subtle" style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5 }}>
+        Includes photos too. Opens your share sheet so you can save it to Files (iCloud), Google Drive, Dropbox, or wherever you keep backups.
+      </div>
+
+      <button
+        className="btn btn-outline btn-full"
+        style={{ marginTop: 10, marginBottom: 24 }}
+        onClick={() => restoreFileRef.current?.click()}
+      >
+        Restore from backup…
+      </button>
+      <input
+        ref={restoreFileRef}
+        type="file"
+        accept="application/json"
+        style={{ display: 'none' }}
+        onChange={onPickRestoreFile}
+      />
+
       <div className="subtle" style={{ marginBottom: 8 }}>Support</div>
       <a
         href="https://venmo.com/u/reed-laker"
@@ -188,6 +275,16 @@ export function Settings({
       </a>
 
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
+
+      {restoreJson && (
+        <ConfirmSheet
+          title="Restore from backup?"
+          message="This replaces all current logs, metrics, custom exercises, your split, and photos with what's in this file. This can't be undone."
+          confirmLabel="Restore"
+          onConfirm={() => restoreData(restoreJson)}
+          onClose={() => setRestoreJson(null)}
+        />
+      )}
     </Sheet>
   )
 }
