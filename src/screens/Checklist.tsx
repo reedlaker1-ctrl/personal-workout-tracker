@@ -9,15 +9,11 @@ import {
   removeCustomExercise,
   setSetting,
   todayISO,
-  isExerciseStagnant,
-  settleExerciseNudge,
-  activateExerciseNudge,
-  snoozeExerciseNudge,
+  isWeightStagnant,
   type Unit,
   type WorkoutLog,
 } from '../db/db'
 import { Sheet } from '../components/Sheet'
-import { ConfirmSheet } from '../components/ConfirmSheet'
 import { relativeDate, num } from '../util/format'
 
 interface Props {
@@ -25,6 +21,8 @@ interface Props {
   dayId: string
   unit: Unit
   dayRolloverHour: number
+  nudgeSessions: number
+  nudgeWeeks: number
   onBack: () => void
 }
 
@@ -45,7 +43,7 @@ const CONFETTI = Array.from({ length: 10 }, (_, i) => {
   }
 })
 
-export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props) {
+export function Checklist({ split, dayId, unit, dayRolloverHour, nudgeSessions, nudgeWeeks, onBack }: Props) {
   const day = split.days.find((d) => d.id === dayId)
 
   const custom =
@@ -57,10 +55,6 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
 
   // All logs: used for cross-day prior weight lookups
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
-
-  // "Push heavier" reminders the user has opted into for plateaued exercises
-  const nudges = useLiveQuery(() => db.exerciseNudges.toArray(), []) ?? []
-  const nudgeActiveFor = (name: string) => nudges.some((n) => n.exerciseKey === name && n.active)
 
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
@@ -208,7 +202,7 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
         const isDragging = activeDrag?.name === it.name
         const isDismissing = dismissing === it.name
         const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
-        const showNudge = !t && nudgeActiveFor(it.name)
+        const showNudge = !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
 
         return (
           <div
@@ -272,7 +266,6 @@ export function Checklist({ split, dayId, unit, dayRolloverHour, onBack }: Props
           dayId={dayId}
           existing={todayLog(editing.name)}
           prior={priorLog(editing.name)}
-          priorMax={priorMax(editing.name)}
           onClose={() => setEditing(null)}
         />
       )}
@@ -294,7 +287,6 @@ function LogSheet({
   dayId,
   existing,
   prior,
-  priorMax,
   onClose,
 }: {
   item: Item
@@ -302,7 +294,6 @@ function LogSheet({
   dayId: string
   existing?: WorkoutLog
   prior?: WorkoutLog
-  priorMax?: number
   onClose: () => void
 }) {
   const [mode, setMode] = useState<'weight' | 'plates'>('weight')
@@ -310,7 +301,6 @@ function LogSheet({
     existing ? num(existing.weight) : prior ? num(prior.weight) : ''
   )
   const [counts, setCounts] = useState<Record<number, number>>({})
-  const [nudgePrompt, setNudgePrompt] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const adjust = (w: number, delta: number) =>
@@ -337,143 +327,107 @@ function LogSheet({
     const w = mode === 'plates' ? calcWeight : parseFloat(val)
     if (!isFinite(w)) return
     await logWeight(item.name, dayId, w)
-
-    const isPR = priorMax == null || w > priorMax
-    const nudge = await settleExerciseNudge(item.name, isPR)
-    if (!isPR && !nudge.active && nudge.snoozeRemaining <= 0 && (await isExerciseStagnant(item.name))) {
-      setNudgePrompt(w)
-      return
-    }
-    onClose()
-  }
-
-  const resolveNudge = (accepted: boolean) => {
-    if (accepted) activateExerciseNudge(item.name)
-    else snoozeExerciseNudge(item.name)
-    setNudgePrompt(null)
-    onClose()
-  }
-
-  // Dismissing without an explicit choice (backdrop tap, swipe, Escape) is
-  // treated as neutral — no snooze applied, so it'll ask again next time.
-  const closeNudgePrompt = () => {
-    setNudgePrompt(null)
     onClose()
   }
 
   return (
-    <>
-      <Sheet title={item.name} onClose={onClose}>
-        <div className="mode-toggle">
-          <button type="button" className={`mode-btn${mode === 'weight' ? ' active' : ''}`} onClick={() => setMode('weight')}>
-            Weight
-          </button>
-          <button type="button" className={`mode-btn${mode === 'plates' ? ' active' : ''}`} onClick={() => setMode('plates')}>
-            Plates
-          </button>
-        </div>
+    <Sheet title={item.name} onClose={onClose}>
+      <div className="mode-toggle">
+        <button type="button" className={`mode-btn${mode === 'weight' ? ' active' : ''}`} onClick={() => setMode('weight')}>
+          Weight
+        </button>
+        <button type="button" className={`mode-btn${mode === 'plates' ? ' active' : ''}`} onClick={() => setMode('plates')}>
+          Plates
+        </button>
+      </div>
 
-        {mode === 'weight' ? (
-          <>
-            <div className="row" style={{ marginBottom: 12 }}>
-              <button
-                type="button"
-                className="btn sign-toggle"
-                aria-label="Toggle negative (for assisted exercises)"
-                onClick={toggleSign}
-              >
-                ±
-              </button>
-              <input
-                ref={inputRef}
-                className="field"
-                style={{ marginBottom: 0 }}
-                type="number"
-                inputMode="decimal"
-                autoFocus
-                placeholder={`Weight (${unit})`}
-                value={val}
-                onChange={(e) => setVal(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                onKeyDown={(e) => e.key === 'Enter' && save()}
-              />
-            </div>
-            <div className="weight-adjusters">
-              {ADJUSTMENTS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className="adj-btn"
-                  onPointerDown={(e) => { e.preventDefault(); quickAdjust(d) }}
-                >
-                  {d > 0 ? '+' : ''}{d}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="plate-calc">
-              {PLATE_WEIGHTS.map((w) => {
-                const count = counts[w] ?? 0
-                return (
-                  <div key={w} className="plate-row">
-                    <span className="plate-label">{w}</span>
-                    <div className="plate-stepper">
-                      <button type="button" className="stepper-btn" onClick={() => adjust(w, -1)}>−</button>
-                      <span className="stepper-count">{count}</span>
-                      <button type="button" className="stepper-btn" onClick={() => adjust(w, 1)}>+</button>
-                    </div>
-                    <span className={`plate-side-total${count > 0 ? ' has-weight' : ''}`}>
-                      {count > 0 ? num(w * count) : '—'}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="plate-total">
-              {num(calcWeight)} {unit}
-              <span className="plate-breakdown">
-                {hasPlates ? `${BAR_WEIGHT} bar + ${num(platesPerSide)} × 2/side` : 'bar only'}
-              </span>
-            </div>
-          </>
-        )}
-
-        <div className="row">
-          {existing && (
-            <button type="button" className="btn btn-outline" onClick={async () => { await deleteTodayLog(item.name, dayId); onClose() }}>
-              Clear
+      {mode === 'weight' ? (
+        <>
+          <div className="row" style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              className="btn sign-toggle"
+              aria-label="Toggle negative (for assisted exercises)"
+              onClick={toggleSign}
+            >
+              ±
             </button>
-          )}
-          <button type="button" className="btn btn-accent" onClick={save}>
-            {existing ? 'Update' : 'Save'}
-            {mode === 'plates' && hasPlates ? ` · ${num(calcWeight)} ${unit}` : ''}
-          </button>
-        </div>
-
-        {item.customId != null && (
-          <div style={{ textAlign: 'center', marginTop: 10 }}>
-            <button type="button" className="del-link" onClick={async () => { await removeCustomExercise(item.customId!); onClose() }}>
-              Remove exercise
-            </button>
+            <input
+              ref={inputRef}
+              className="field"
+              style={{ marginBottom: 0 }}
+              type="number"
+              inputMode="decimal"
+              autoFocus
+              placeholder={`Weight (${unit})`}
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+            />
           </div>
-        )}
-      </Sheet>
-
-      {nudgePrompt !== null && (
-        <ConfirmSheet
-          title="Time to level up?"
-          message={`You've held ${num(nudgePrompt)} ${unit} on ${item.name} for a while now. Want a reminder next time to aim heavier?`}
-          confirmLabel="Remind me"
-          cancelLabel="Not now"
-          tone="accent"
-          onConfirm={() => resolveNudge(true)}
-          onCancel={() => resolveNudge(false)}
-          onClose={closeNudgePrompt}
-        />
+          <div className="weight-adjusters">
+            {ADJUSTMENTS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className="adj-btn"
+                onPointerDown={(e) => { e.preventDefault(); quickAdjust(d) }}
+              >
+                {d > 0 ? '+' : ''}{d}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="plate-calc">
+            {PLATE_WEIGHTS.map((w) => {
+              const count = counts[w] ?? 0
+              return (
+                <div key={w} className="plate-row">
+                  <span className="plate-label">{w}</span>
+                  <div className="plate-stepper">
+                    <button type="button" className="stepper-btn" onClick={() => adjust(w, -1)}>−</button>
+                    <span className="stepper-count">{count}</span>
+                    <button type="button" className="stepper-btn" onClick={() => adjust(w, 1)}>+</button>
+                  </div>
+                  <span className={`plate-side-total${count > 0 ? ' has-weight' : ''}`}>
+                    {count > 0 ? num(w * count) : '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="plate-total">
+            {num(calcWeight)} {unit}
+            <span className="plate-breakdown">
+              {hasPlates ? `${BAR_WEIGHT} bar + ${num(platesPerSide)} × 2/side` : 'bar only'}
+            </span>
+          </div>
+        </>
       )}
-    </>
+
+      <div className="row">
+        {existing && (
+          <button type="button" className="btn btn-outline" onClick={async () => { await deleteTodayLog(item.name, dayId); onClose() }}>
+            Clear
+          </button>
+        )}
+        <button type="button" className="btn btn-accent" onClick={save}>
+          {existing ? 'Update' : 'Save'}
+          {mode === 'plates' && hasPlates ? ` · ${num(calcWeight)} ${unit}` : ''}
+        </button>
+      </div>
+
+      {item.customId != null && (
+        <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <button type="button" className="del-link" onClick={async () => { await removeCustomExercise(item.customId!); onClose() }}>
+            Remove exercise
+          </button>
+        </div>
+      )}
+    </Sheet>
   )
 }
 

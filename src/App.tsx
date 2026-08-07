@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, setSetting, DEFAULT_DAY_ROLLOVER_HOUR, type Unit } from './db/db'
+import {
+  db,
+  setSetting,
+  DEFAULT_DAY_ROLLOVER_HOUR,
+  DEFAULT_NUDGE_SESSIONS,
+  DEFAULT_NUDGE_WEEKS,
+  type Unit,
+} from './db/db'
 import { splits, type Split } from './config/splits'
 import { TabBar } from './components/TabBar'
 import { DaySelect } from './screens/DaySelect'
@@ -31,6 +38,12 @@ export default function App() {
   const unit = (settings?.find((s) => s.key === 'unit')?.value ?? 'lb') as Unit
   const dayRolloverHour = Number(
     settings?.find((s) => s.key === 'dayRolloverHour')?.value ?? DEFAULT_DAY_ROLLOVER_HOUR,
+  )
+  const nudgeSessions = Number(
+    settings?.find((s) => s.key === 'nudgeSessions')?.value ?? DEFAULT_NUDGE_SESSIONS,
+  )
+  const nudgeWeeks = Number(
+    settings?.find((s) => s.key === 'nudgeWeeks')?.value ?? DEFAULT_NUDGE_WEEKS,
   )
 
   const userSplitJson = settings?.find((s) => s.key === 'userSplit')?.value
@@ -66,6 +79,8 @@ export default function App() {
             dayId={dayId}
             unit={unit}
             dayRolloverHour={dayRolloverHour}
+            nudgeSessions={nudgeSessions}
+            nudgeWeeks={nudgeWeeks}
             onBack={() => setDayId(null)}
           />
         ) : (
@@ -94,6 +109,8 @@ export default function App() {
           <Progress
             unit={unit}
             split={activeSplit}
+            nudgeSessions={nudgeSessions}
+            nudgeWeeks={nudgeWeeks}
             onOpenMetric={setMetricId}
             onOpenExercise={setExerciseKey}
           />
@@ -113,6 +130,8 @@ export default function App() {
           split={activeSplit}
           unit={unit}
           dayRolloverHour={dayRolloverHour}
+          nudgeSessions={nudgeSessions}
+          nudgeWeeks={nudgeWeeks}
           onClose={() => setShowSettings(false)}
           onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
         />

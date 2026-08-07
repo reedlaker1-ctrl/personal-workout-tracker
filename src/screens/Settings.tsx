@@ -16,17 +16,29 @@ interface Props {
   split: Split | null
   unit: Unit
   dayRolloverHour: number
+  nudgeSessions: number
+  nudgeWeeks: number
   onClose: () => void
   onEditSplit: () => void
 }
 
 const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5]
+const NUDGE_SESSION_OPTIONS = [2, 3, 4, 5]
+const NUDGE_WEEK_OPTIONS = [1, 2, 3, 4]
 
 function hourLabel(h: number): string {
   return h === 0 ? '12am' : `${h}am`
 }
 
-export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }: Props) {
+export function Settings({
+  split,
+  unit,
+  dayRolloverHour,
+  nudgeSessions,
+  nudgeWeeks,
+  onClose,
+  onEditSplit,
+}: Props) {
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
 
@@ -88,6 +100,34 @@ export function Settings({ split, unit, dayRolloverHour, onClose, onEditSplit }:
       </div>
       <div className="subtle" style={{ marginBottom: 24, fontSize: 12, lineHeight: 1.5 }}>
         A workout still going after midnight counts as the day before until this time.
+      </div>
+
+      <div className="subtle" style={{ marginBottom: 8 }}>Plateau highlight after</div>
+      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        {NUDGE_SESSION_OPTIONS.map((n) => (
+          <button
+            key={n}
+            className={`btn${n === nudgeSessions ? ' btn-accent' : ''}`}
+            onClick={() => setSetting('nudgeSessions', String(n))}
+          >
+            {n} sessions
+          </button>
+        ))}
+      </div>
+      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        {NUDGE_WEEK_OPTIONS.map((w) => (
+          <button
+            key={w}
+            className={`btn${w === nudgeWeeks ? ' btn-accent' : ''}`}
+            onClick={() => setSetting('nudgeWeeks', String(w))}
+          >
+            {w} {w === 1 ? 'week' : 'weeks'}
+          </button>
+        ))}
+      </div>
+      <div className="subtle" style={{ marginBottom: 24, fontSize: 12, lineHeight: 1.5 }}>
+        An exercise's last weight is highlighted once it's held steady for both this many
+        sessions and this many weeks — whichever takes longer.
       </div>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Exercises</div>

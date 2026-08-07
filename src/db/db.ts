@@ -47,11 +47,13 @@ export interface ProgressPhoto {
   caption?: string
 }
 
-export interface ExerciseNudge {
+// No longer used by the app (the "push heavier" highlight is now computed
+// live from log history instead of persisted per-exercise state), but the
+// table stays declared so any database already upgraded to version 2 still
+// opens cleanly.
+interface ExerciseNudge {
   exerciseKey: string
-  // User opted in to a "push heavier" reminder — shows a highlight until a new PR is logged.
   active: boolean
-  // Sessions left to wait before asking again, after the user declined once.
   snoozeRemaining: number
 }
 
@@ -195,29 +197,24 @@ export async function flipExerciseSign(exerciseKey: string): Promise<void> {
 }
 
 export async function renameExerciseKey(oldKey: string, newKey: string): Promise<void> {
-  await db.transaction('rw', db.logs, db.customExercises, db.exerciseNudges, async () => {
+  await db.transaction('rw', db.logs, db.customExercises, async () => {
     await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
     const customs = await db.customExercises.toArray()
     for (const c of customs.filter((c) => c.name === oldKey)) {
       await db.customExercises.update(c.id!, { name: newKey })
     }
-    const nudge = await db.exerciseNudges.get(oldKey)
-    if (nudge) {
-      await db.exerciseNudges.delete(oldKey)
-      await db.exerciseNudges.put({ ...nudge, exerciseKey: newKey })
-    }
   })
 }
 
-// ── "Push heavier" nudge ──
+// ── "Push heavier" highlight ──
 // A plateau only counts once the current same-weight streak is both long
 // enough (a handful of sessions — not a one-off repeat) and old enough (a
-// couple of weeks — so someone training an exercise 2x/week isn't nagged
-// after a single week, while someone who trains it rarely still gets
-// flagged once they've genuinely sat still for a while).
-const NUDGE_MIN_STREAK_SESSIONS = 3
-const NUDGE_MIN_STREAK_DAYS = 14
-const NUDGE_SNOOZE_SESSIONS = 3
+// few weeks — so someone training an exercise 2x/week isn't flagged after
+// a single week, while someone who trains it rarely still gets flagged
+// once they've genuinely sat still for a while). Both thresholds are
+// user-configurable in Settings.
+export const DEFAULT_NUDGE_SESSIONS = 3
+export const DEFAULT_NUDGE_WEEKS = 2
 
 function daysBetween(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number)
@@ -226,45 +223,23 @@ function daysBetween(a: string, b: string): number {
 }
 
 /** True once an exercise's most recent weight has held steady for both
- *  several sessions and a couple of weeks. */
-export async function isExerciseStagnant(exerciseKey: string): Promise<boolean> {
-  const logs = await db.logs.where('exerciseKey').equals(exerciseKey).toArray()
+ *  `minSessions` sessions and `minWeeks` weeks. Pure function over
+ *  already-loaded logs — no highlight state is persisted anywhere. */
+export function isWeightStagnant(
+  logs: WorkoutLog[],
+  minSessions: number,
+  minWeeks: number,
+): boolean {
+  if (logs.length < minSessions) return false
   const byDate = [...logs].sort((a, b) => (a.date < b.date ? -1 : 1))
-  if (byDate.length < NUDGE_MIN_STREAK_SESSIONS) return false
 
   const latestWeight = byDate[byDate.length - 1].weight
   let streakStart = byDate.length - 1
   while (streakStart > 0 && byDate[streakStart - 1].weight === latestWeight) streakStart--
   const streak = byDate.slice(streakStart)
 
-  if (streak.length < NUDGE_MIN_STREAK_SESSIONS) return false
-  return daysBetween(streak[0].date, streak[streak.length - 1].date) >= NUDGE_MIN_STREAK_DAYS
-}
-
-export async function getExerciseNudge(exerciseKey: string): Promise<ExerciseNudge> {
-  return (await db.exerciseNudges.get(exerciseKey)) ?? { exerciseKey, active: false, snoozeRemaining: 0 }
-}
-
-/** Called after every log save. Clears an active reminder once a new PR is
- *  hit (goal met), otherwise ticks the decline snooze down by one session. */
-export async function settleExerciseNudge(exerciseKey: string, isPR: boolean): Promise<ExerciseNudge> {
-  if (isPR) {
-    const cleared: ExerciseNudge = { exerciseKey, active: false, snoozeRemaining: 0 }
-    await db.exerciseNudges.put(cleared)
-    return cleared
-  }
-  const current = await getExerciseNudge(exerciseKey)
-  const updated = { ...current, snoozeRemaining: Math.max(0, current.snoozeRemaining - 1) }
-  await db.exerciseNudges.put(updated)
-  return updated
-}
-
-export async function activateExerciseNudge(exerciseKey: string): Promise<void> {
-  await db.exerciseNudges.put({ exerciseKey, active: true, snoozeRemaining: 0 })
-}
-
-export async function snoozeExerciseNudge(exerciseKey: string): Promise<void> {
-  await db.exerciseNudges.put({ exerciseKey, active: false, snoozeRemaining: NUDGE_SNOOZE_SESSIONS })
+  if (streak.length < minSessions) return false
+  return daysBetween(streak[0].date, streak[streak.length - 1].date) >= minWeeks * 7
 }
 
 // ── Custom exercises ──

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, addMetric, type MetricKind, type Unit } from '../db/db'
+import { db, addMetric, isWeightStagnant, type MetricKind, type Unit } from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
@@ -10,13 +10,15 @@ import { num, shortDate } from '../util/format'
 interface Props {
   unit: Unit
   split: Split
+  nudgeSessions: number
+  nudgeWeeks: number
   onOpenMetric: (id: number) => void
   onOpenExercise: (key: string) => void
 }
 
 type Seg = 'exercises' | 'metrics' | 'photos'
 
-export function Progress({ unit, split, onOpenMetric, onOpenExercise }: Props) {
+export function Progress({ unit, split, nudgeSessions, nudgeWeeks, onOpenMetric, onOpenExercise }: Props) {
   const [seg, setSeg] = useState<Seg>('exercises')
 
   return (
@@ -32,7 +34,13 @@ export function Progress({ unit, split, onOpenMetric, onOpenExercise }: Props) {
       </div>
 
       {seg === 'exercises' && (
-        <ExercisesList split={split} unit={unit} onOpenExercise={onOpenExercise} />
+        <ExercisesList
+          split={split}
+          unit={unit}
+          nudgeSessions={nudgeSessions}
+          nudgeWeeks={nudgeWeeks}
+          onOpenExercise={onOpenExercise}
+        />
       )}
       {seg === 'metrics' && (
         <MetricsList unit={unit} onOpenMetric={onOpenMetric} />
@@ -45,17 +53,19 @@ export function Progress({ unit, split, onOpenMetric, onOpenExercise }: Props) {
 function ExercisesList({
   split,
   unit,
+  nudgeSessions,
+  nudgeWeeks,
   onOpenExercise,
 }: {
   split: Split
   unit: Unit
+  nudgeSessions: number
+  nudgeWeeks: number
   onOpenExercise: (key: string) => void
 }) {
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
   const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
-  const nudges = useLiveQuery(() => db.exerciseNudges.toArray(), []) ?? []
   const withData = new Set(allLogs.map((l) => l.exerciseKey))
-  const nudgeActiveFor = (name: string) => nudges.some((n) => n.exerciseKey === name && n.active)
 
   const hasAnyData = split.days.some((day) => {
     const names = [
@@ -91,7 +101,7 @@ function ExercisesList({
                 .sort((a, b) => (a.date < b.date ? -1 : 1))
               const points = logs.map((l) => ({ date: l.date, value: l.weight }))
               const latest = logs[logs.length - 1]
-              const showNudge = nudgeActiveFor(name)
+              const showNudge = isWeightStagnant(logs, nudgeSessions, nudgeWeeks)
 
               return (
                 <button
