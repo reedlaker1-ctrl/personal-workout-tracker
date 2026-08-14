@@ -10,6 +10,7 @@ import {
   getExerciseKeysWithLogs,
   flipExerciseSign,
   setExerciseKind,
+  unarchiveExercise,
   type Unit,
   type MetricKind,
 } from '../db/db'
@@ -52,6 +53,7 @@ export function Settings({
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
   const [kindPicking, setKindPicking] = useState(false)
+  const [archiveManaging, setArchiveManaging] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [restoreJson, setRestoreJson] = useState<string | null>(null)
   const restoreFileRef = useRef<HTMLInputElement>(null)
@@ -231,11 +233,19 @@ export function Settings({
       </button>
       <button
         className="btn btn-full"
-        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 10 }}
         onClick={() => setFlipping(true)}
       >
         <span style={{ fontSize: 18 }}>±</span>
         Flip exercise sign
+      </button>
+      <button
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
+        onClick={() => setArchiveManaging(true)}
+      >
+        <span style={{ fontSize: 18 }}>🗄</span>
+        Archived exercises
       </button>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Data</div>
@@ -326,6 +336,8 @@ export function Settings({
 
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
 
+      {archiveManaging && <ArchivedExercisesSheet split={split} onClose={() => setArchiveManaging(false)} />}
+
       {restoreJson && (
         <ConfirmSheet
           title="Restore from backup?"
@@ -385,6 +397,36 @@ function ExerciseKindSheet({ split, onClose }: { split: Split | null; onClose: (
           </div>
         )
       })}
+    </Sheet>
+  )
+}
+
+function ArchivedExercisesSheet({ split, onClose }: { split: Split | null; onClose: () => void }) {
+  const archived = useLiveQuery(() => db.archivedExercises.toArray(), []) ?? []
+  const dayName = (dayId: string) => split?.days.find((d) => d.id === dayId)?.name ?? dayId
+
+  return (
+    <Sheet title="Archived exercises" onClose={onClose}>
+      <div className="subtle" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        Archiving hides an exercise from its day's checklist without deleting any of its
+        logged history. Restore it here anytime.
+      </div>
+
+      {archived.length === 0 && (
+        <div className="empty">No archived exercises.</div>
+      )}
+
+      {archived.map((a) => (
+        <div key={a.id} className="day-card" style={{ padding: 14, marginBottom: 9 }}>
+          <span>
+            <div className="day-card-name" style={{ fontSize: 16 }}>{a.name}</div>
+            <div className="day-card-sub">{dayName(a.dayId)}</div>
+          </span>
+          <button className="btn btn-accent" onClick={() => unarchiveExercise(a.id!)}>
+            Restore
+          </button>
+        </div>
+      ))}
     </Sheet>
   )
 }

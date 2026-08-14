@@ -7,6 +7,7 @@ import {
   deleteTodayLog,
   addCustomExercise,
   removeCustomExercise,
+  archiveExercise,
   setSetting,
   todayISO,
   isWeightStagnant,
@@ -72,6 +73,12 @@ export function Checklist({
   const kindFor = (name: string): MetricKind =>
     exerciseKinds.find((k) => k.exerciseKey === name)?.kind ?? 'weight'
 
+  // Archived exercises are hidden from the checklist entirely (not just for
+  // today) but keep their logged history — restorable from Settings.
+  const archived =
+    useLiveQuery(() => db.archivedExercises.where('dayId').equals(dayId).toArray(), [dayId]) ?? []
+  const archivedNames = useMemo(() => new Set(archived.map((a) => a.name)), [archived])
+
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -134,8 +141,8 @@ export function Checklist({
   const items: Item[] = useMemo(() => {
     const base = (day?.exercises ?? []).map((name) => ({ name }))
     const extra = custom.map((c) => ({ name: c.name, customId: c.id }))
-    return [...base, ...extra]
-  }, [day, custom])
+    return [...base, ...extra].filter((it) => !archivedNames.has(it.name))
+  }, [day, custom, archivedNames])
 
   const dayLogsFor = (name: string) => dayLogs.filter((l) => l.exerciseKey === name)
   const allLogsFor = (name: string) => allLogs.filter((l) => l.exerciseKey === name)
@@ -483,8 +490,18 @@ function LogSheet({
         </button>
       </div>
 
+      <div style={{ textAlign: 'center', marginTop: 10 }}>
+        <button
+          type="button"
+          className="del-link"
+          onClick={async () => { await archiveExercise(dayId, item.name); onClose() }}
+        >
+          Archive exercise
+        </button>
+      </div>
+
       {item.customId != null && (
-        <div style={{ textAlign: 'center', marginTop: 10 }}>
+        <div style={{ textAlign: 'center', marginTop: 6 }}>
           <button type="button" className="del-link" onClick={async () => { await removeCustomExercise(item.customId!); onClose() }}>
             Remove exercise
           </button>

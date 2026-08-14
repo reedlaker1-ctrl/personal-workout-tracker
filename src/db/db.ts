@@ -37,6 +37,14 @@ export interface ExerciseKind {
   kind: MetricKind
 }
 
+// An archived exercise is hidden from its day's checklist but keeps all its
+// logged history, and can be restored (unarchived) from Settings anytime.
+export interface ArchivedExercise {
+  id?: number
+  dayId: string
+  name: string
+}
+
 export interface Metric {
   id?: number
   name: string
@@ -79,6 +87,7 @@ class WorkoutDB extends Dexie {
   photos!: Table<ProgressPhoto, number>
   exerciseNudges!: Table<ExerciseNudge, string>
   exerciseKinds!: Table<ExerciseKind, string>
+  archivedExercises!: Table<ArchivedExercise, number>
 
   constructor() {
     super('workout-app')
@@ -108,6 +117,17 @@ class WorkoutDB extends Dexie {
       photos: '++id, date',
       exerciseNudges: 'exerciseKey',
       exerciseKinds: 'exerciseKey',
+    })
+    this.version(4).stores({
+      settings: 'key',
+      customExercises: '++id, dayId',
+      logs: '++id, exerciseKey, dayId, date',
+      metrics: '++id',
+      metricEntries: '++id, metricId, date',
+      photos: '++id, date',
+      exerciseNudges: 'exerciseKey',
+      exerciseKinds: 'exerciseKey',
+      archivedExercises: '++id, dayId, name',
     })
   }
 }
@@ -229,18 +249,26 @@ export async function flipExerciseSign(exerciseKey: string): Promise<void> {
 }
 
 export async function renameExerciseKey(oldKey: string, newKey: string): Promise<void> {
-  await db.transaction('rw', db.logs, db.customExercises, db.exerciseKinds, async () => {
-    await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
-    const customs = await db.customExercises.toArray()
-    for (const c of customs.filter((c) => c.name === oldKey)) {
-      await db.customExercises.update(c.id!, { name: newKey })
-    }
-    const kind = await db.exerciseKinds.get(oldKey)
-    if (kind) {
-      await db.exerciseKinds.delete(oldKey)
-      await db.exerciseKinds.put({ ...kind, exerciseKey: newKey })
-    }
-  })
+  await db.transaction(
+    'rw',
+    [db.logs, db.customExercises, db.exerciseKinds, db.archivedExercises],
+    async () => {
+      await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
+      const customs = await db.customExercises.toArray()
+      for (const c of customs.filter((c) => c.name === oldKey)) {
+        await db.customExercises.update(c.id!, { name: newKey })
+      }
+      const kind = await db.exerciseKinds.get(oldKey)
+      if (kind) {
+        await db.exerciseKinds.delete(oldKey)
+        await db.exerciseKinds.put({ ...kind, exerciseKey: newKey })
+      }
+      const archived = await db.archivedExercises.where('name').equals(oldKey).toArray()
+      for (const a of archived) {
+        await db.archivedExercises.update(a.id!, { name: newKey })
+      }
+    },
+  )
 }
 
 /** Whether an exercise records a weight or a plain rep count. Defaults to
@@ -297,6 +325,18 @@ export async function addCustomExercise(dayId: string, name: string): Promise<vo
 
 export async function removeCustomExercise(id: number): Promise<void> {
   await db.customExercises.delete(id)
+}
+
+// ── Archived exercises ──
+// Archiving hides an exercise from its day's checklist without touching its
+// logged history — unlike removeCustomExercise, it's meant to be reversible.
+export async function archiveExercise(dayId: string, name: string): Promise<void> {
+  const existing = await db.archivedExercises.where({ dayId, name }).first()
+  if (!existing) await db.archivedExercises.add({ dayId, name })
+}
+
+export async function unarchiveExercise(id: number): Promise<void> {
+  await db.archivedExercises.delete(id)
 }
 
 // ── Metrics ──
