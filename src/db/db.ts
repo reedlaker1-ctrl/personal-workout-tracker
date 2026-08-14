@@ -16,15 +16,26 @@ export interface CustomExercise {
   name: string
 }
 
+export type EntryMode = 'weight' | 'plates'
+
 export interface WorkoutLog {
   id?: number
   exerciseKey: string // the exercise name — the stable key for "prior weight"
   dayId: string
-  weight: number
+  weight: number // the logged number — a rep count when the exercise's kind is 'reps'
   date: string // ISO date string (YYYY-MM-DD)
+  // How this entry was entered. Remembered so the log sheet reopens to
+  // whichever notation was used last time, plate breakdown included.
+  mode?: EntryMode
+  plateCounts?: Record<number, number>
 }
 
 export type MetricKind = 'weight' | 'reps'
+
+export interface ExerciseKind {
+  exerciseKey: string
+  kind: MetricKind
+}
 
 export interface Metric {
   id?: number
@@ -67,6 +78,7 @@ class WorkoutDB extends Dexie {
   metricEntries!: Table<MetricEntry, number>
   photos!: Table<ProgressPhoto, number>
   exerciseNudges!: Table<ExerciseNudge, string>
+  exerciseKinds!: Table<ExerciseKind, string>
 
   constructor() {
     super('workout-app')
@@ -86,6 +98,16 @@ class WorkoutDB extends Dexie {
       metricEntries: '++id, metricId, date',
       photos: '++id, date',
       exerciseNudges: 'exerciseKey',
+    })
+    this.version(3).stores({
+      settings: 'key',
+      customExercises: '++id, dayId',
+      logs: '++id, exerciseKey, dayId, date',
+      metrics: '++id',
+      metricEntries: '++id, metricId, date',
+      photos: '++id, date',
+      exerciseNudges: 'exerciseKey',
+      exerciseKinds: 'exerciseKey',
     })
   }
 }
@@ -154,17 +176,27 @@ export async function getTodayLog(exerciseKey: string): Promise<WorkoutLog | und
   return logs.sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
 }
 
-/** Record (or overwrite) today's weight for an exercise. */
+/** Record (or overwrite) today's weight for an exercise. `mode`/`plateCounts`
+ *  are remembered so the log sheet reopens to the same notation next time. */
 export async function logWeight(
   exerciseKey: string,
   dayId: string,
   weight: number,
+  mode?: EntryMode,
+  plateCounts?: Record<number, number>,
 ): Promise<void> {
   const existing = await getTodayLog(exerciseKey)
   if (existing?.id != null) {
-    await db.logs.update(existing.id, { weight })
+    await db.logs.update(existing.id, { weight, mode, plateCounts })
   } else {
-    await db.logs.add({ exerciseKey, dayId, weight, date: todayISO(await getDayRolloverHour()) })
+    await db.logs.add({
+      exerciseKey,
+      dayId,
+      weight,
+      mode,
+      plateCounts,
+      date: todayISO(await getDayRolloverHour()),
+    })
   }
 }
 
@@ -197,13 +229,29 @@ export async function flipExerciseSign(exerciseKey: string): Promise<void> {
 }
 
 export async function renameExerciseKey(oldKey: string, newKey: string): Promise<void> {
-  await db.transaction('rw', db.logs, db.customExercises, async () => {
+  await db.transaction('rw', db.logs, db.customExercises, db.exerciseKinds, async () => {
     await db.logs.where('exerciseKey').equals(oldKey).modify({ exerciseKey: newKey })
     const customs = await db.customExercises.toArray()
     for (const c of customs.filter((c) => c.name === oldKey)) {
       await db.customExercises.update(c.id!, { name: newKey })
     }
+    const kind = await db.exerciseKinds.get(oldKey)
+    if (kind) {
+      await db.exerciseKinds.delete(oldKey)
+      await db.exerciseKinds.put({ ...kind, exerciseKey: newKey })
+    }
   })
+}
+
+/** Whether an exercise records a weight or a plain rep count. Defaults to
+ *  'weight' for any exercise that hasn't been explicitly set otherwise. */
+export async function getExerciseKind(exerciseKey: string): Promise<MetricKind> {
+  const row = await db.exerciseKinds.get(exerciseKey)
+  return row?.kind ?? 'weight'
+}
+
+export async function setExerciseKind(exerciseKey: string, kind: MetricKind): Promise<void> {
+  await db.exerciseKinds.put({ exerciseKey, kind })
 }
 
 // ── "Push heavier" highlight ──

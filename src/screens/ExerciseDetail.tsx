@@ -17,6 +17,9 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
       () => db.logs.where('exerciseKey').equals(exerciseKey).toArray(),
       [exerciseKey],
     ) ?? []
+  const exerciseKind = useLiveQuery(() => db.exerciseKinds.get(exerciseKey), [exerciseKey])
+  const isReps = exerciseKind?.kind === 'reps'
+  const exUnit = isReps ? 'reps' : unit
 
   const sorted = [...logs].sort((a, b) => (a.date < b.date ? -1 : 1))
   const points = sorted.map((l) => ({ date: l.date, value: l.weight }))
@@ -37,7 +40,7 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
       </div>
 
       <div className="chart-wrap">
-        <LineChart points={points} height={180} unit={unit} />
+        <LineChart points={points} height={180} unit={exUnit} />
       </div>
 
       {desc.length === 0 && (
@@ -48,7 +51,7 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
         <div className="card" style={{ padding: '4px 14px', marginTop: 12 }}>
           {desc.map((e) => (
             <div key={e.id} className="entry-row">
-              <span className="entry-val">{num(e.weight)} {unit}</span>
+              <span className="entry-val">{num(e.weight)} {exUnit}</span>
               <span className="entry-date">{shortDate(e.date)}</span>
               <button
                 className="btn-icon"
@@ -66,7 +69,7 @@ export function ExerciseDetail({ exerciseKey, unit, onBack }: Props) {
       {confirmingEntry && (
         <ConfirmSheet
           title="Delete entry?"
-          message={`${num(confirmingEntry.weight)} ${unit} on ${shortDate(confirmingEntry.date)} will be removed.`}
+          message={`${num(confirmingEntry.weight)} ${exUnit} on ${shortDate(confirmingEntry.date)} will be removed.`}
           onConfirm={() => deleteEntry(confirmingEntry.id!)}
           onClose={() => setConfirmingId(null)}
         />

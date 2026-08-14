@@ -77,6 +77,9 @@ function ExercisesList({
 }) {
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
   const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const kindFor = (name: string): MetricKind =>
+    exerciseKinds.find((k) => k.exerciseKey === name)?.kind ?? 'weight'
   const withData = new Set(allLogs.map((l) => l.exerciseKey))
 
   const hasAnyData = split.days.some((day) => {
@@ -114,6 +117,7 @@ function ExercisesList({
               const points = logs.map((l) => ({ date: l.date, value: l.weight }))
               const latest = logs[logs.length - 1]
               const showNudge = nudgeEnabled && isWeightStagnant(logs, nudgeSessions, nudgeWeeks)
+              const exUnit = kindFor(name) === 'reps' ? 'reps' : unit
 
               return (
                 <button
@@ -125,7 +129,7 @@ function ExercisesList({
                     <div className="metric-name">{name}</div>
                     <div className={`metric-latest${showNudge ? ' nudge' : ''}`}>
                       {latest
-                        ? `${num(latest.weight)} ${unit} · ${shortDate(latest.date)}`
+                        ? `${num(latest.weight)} ${exUnit} · ${shortDate(latest.date)}`
                         : 'No logs yet'}
                     </div>
                   </span>

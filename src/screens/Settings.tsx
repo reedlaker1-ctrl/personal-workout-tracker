@@ -9,7 +9,9 @@ import {
   todayISO,
   getExerciseKeysWithLogs,
   flipExerciseSign,
+  setExerciseKind,
   type Unit,
+  type MetricKind,
 } from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
@@ -49,6 +51,7 @@ export function Settings({
 }: Props) {
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
+  const [kindPicking, setKindPicking] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [restoreJson, setRestoreJson] = useState<string | null>(null)
   const restoreFileRef = useRef<HTMLInputElement>(null)
@@ -220,6 +223,14 @@ export function Settings({
       <div className="subtle" style={{ marginBottom: 8 }}>Exercises</div>
       <button
         className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 10 }}
+        onClick={() => setKindPicking(true)}
+      >
+        <span style={{ fontSize: 18 }}>#</span>
+        Exercise type (weight / reps)
+      </button>
+      <button
+        className="btn btn-full"
         style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
         onClick={() => setFlipping(true)}
       >
@@ -311,6 +322,8 @@ export function Settings({
         Enjoying the app? Tip the developer
       </a>
 
+      {kindPicking && <ExerciseKindSheet split={split} onClose={() => setKindPicking(false)} />}
+
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
 
       {restoreJson && (
@@ -326,8 +339,63 @@ export function Settings({
   )
 }
 
+function ExerciseKindSheet({ split, onClose }: { split: Split | null; onClose: () => void }) {
+  const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const kindFor = (name: string): MetricKind =>
+    exerciseKinds.find((k) => k.exerciseKey === name)?.kind ?? 'weight'
+
+  const names = Array.from(
+    new Set([
+      ...(split?.days.flatMap((d) => d.exercises) ?? []),
+      ...allCustom.map((c) => c.name),
+    ]),
+  ).sort((a, b) => a.localeCompare(b))
+
+  return (
+    <Sheet title="Exercise type" onClose={onClose}>
+      <div className="subtle" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        Set whether each exercise logs a weight or a plain rep count (like max
+        push-ups). Reps-based exercises hide the weight/plate entry tools.
+      </div>
+
+      {names.length === 0 && (
+        <div className="empty">No exercises in your split yet.</div>
+      )}
+
+      {names.map((name) => {
+        const kind = kindFor(name)
+        return (
+          <div key={name} className="day-card" style={{ padding: 14, marginBottom: 9 }}>
+            <span className="day-card-name" style={{ fontSize: 16 }}>{name}</span>
+            <div className="row" style={{ flex: 'none' }}>
+              <button
+                className={`btn${kind === 'weight' ? ' btn-accent' : ''}`}
+                onClick={() => setExerciseKind(name, 'weight')}
+              >
+                Weight
+              </button>
+              <button
+                className={`btn${kind === 'reps' ? ' btn-accent' : ''}`}
+                onClick={() => setExerciseKind(name, 'reps')}
+              >
+                Reps
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </Sheet>
+  )
+}
+
 function FlipSignSheet({ onClose }: { onClose: () => void }) {
-  const exerciseKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+  const allKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const repsKeys = new Set(
+    exerciseKinds.filter((k) => k.kind === 'reps').map((k) => k.exerciseKey),
+  )
+  const exerciseKeys = allKeys.filter((key) => !repsKeys.has(key))
   const [confirming, setConfirming] = useState<string | null>(null)
 
   return (
