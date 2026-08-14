@@ -9,7 +9,10 @@ import {
   todayISO,
   getExerciseKeysWithLogs,
   flipExerciseSign,
+  setExerciseKind,
+  unarchiveExercise,
   type Unit,
+  type MetricKind,
 } from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
@@ -49,6 +52,8 @@ export function Settings({
 }: Props) {
   const [exporting, setExporting] = useState(false)
   const [flipping, setFlipping] = useState(false)
+  const [kindPicking, setKindPicking] = useState(false)
+  const [archiveManaging, setArchiveManaging] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [restoreJson, setRestoreJson] = useState<string | null>(null)
   const restoreFileRef = useRef<HTMLInputElement>(null)
@@ -220,11 +225,27 @@ export function Settings({
       <div className="subtle" style={{ marginBottom: 8 }}>Exercises</div>
       <button
         className="btn btn-full"
-        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 10 }}
+        onClick={() => setKindPicking(true)}
+      >
+        <span style={{ fontSize: 18 }}>#</span>
+        Exercise type (weight / reps)
+      </button>
+      <button
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 10 }}
         onClick={() => setFlipping(true)}
       >
         <span style={{ fontSize: 18 }}>±</span>
         Flip exercise sign
+      </button>
+      <button
+        className="btn btn-full"
+        style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 24 }}
+        onClick={() => setArchiveManaging(true)}
+      >
+        <span style={{ fontSize: 18 }}>🗄</span>
+        Archived exercises
       </button>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Data</div>
@@ -311,7 +332,11 @@ export function Settings({
         Enjoying the app? Tip the developer
       </a>
 
+      {kindPicking && <ExerciseKindSheet split={split} onClose={() => setKindPicking(false)} />}
+
       {flipping && <FlipSignSheet onClose={() => setFlipping(false)} />}
+
+      {archiveManaging && <ArchivedExercisesSheet split={split} onClose={() => setArchiveManaging(false)} />}
 
       {restoreJson && (
         <ConfirmSheet
@@ -326,8 +351,93 @@ export function Settings({
   )
 }
 
+function ExerciseKindSheet({ split, onClose }: { split: Split | null; onClose: () => void }) {
+  const allCustom = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const kindFor = (name: string): MetricKind =>
+    exerciseKinds.find((k) => k.exerciseKey === name)?.kind ?? 'weight'
+
+  const names = Array.from(
+    new Set([
+      ...(split?.days.flatMap((d) => d.exercises) ?? []),
+      ...allCustom.map((c) => c.name),
+    ]),
+  ).sort((a, b) => a.localeCompare(b))
+
+  return (
+    <Sheet title="Exercise type" onClose={onClose}>
+      <div className="subtle" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        Set whether each exercise logs a weight or a plain rep count (like max
+        push-ups). Reps-based exercises hide the weight/plate entry tools.
+      </div>
+
+      {names.length === 0 && (
+        <div className="empty">No exercises in your split yet.</div>
+      )}
+
+      {names.map((name) => {
+        const kind = kindFor(name)
+        return (
+          <div key={name} className="day-card" style={{ padding: 14, marginBottom: 9 }}>
+            <span className="day-card-name" style={{ fontSize: 16 }}>{name}</span>
+            <div className="row" style={{ flex: 'none' }}>
+              <button
+                className={`btn${kind === 'weight' ? ' btn-accent' : ''}`}
+                onClick={() => setExerciseKind(name, 'weight')}
+              >
+                Weight
+              </button>
+              <button
+                className={`btn${kind === 'reps' ? ' btn-accent' : ''}`}
+                onClick={() => setExerciseKind(name, 'reps')}
+              >
+                Reps
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </Sheet>
+  )
+}
+
+function ArchivedExercisesSheet({ split, onClose }: { split: Split | null; onClose: () => void }) {
+  const archived = useLiveQuery(() => db.archivedExercises.toArray(), []) ?? []
+  const dayName = (dayId: string) => split?.days.find((d) => d.id === dayId)?.name ?? dayId
+
+  return (
+    <Sheet title="Archived exercises" onClose={onClose}>
+      <div className="subtle" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        Archiving hides an exercise from its day's checklist without deleting any of its
+        logged history. Restore it here anytime.
+      </div>
+
+      {archived.length === 0 && (
+        <div className="empty">No archived exercises.</div>
+      )}
+
+      {archived.map((a) => (
+        <div key={a.id} className="day-card" style={{ padding: 14, marginBottom: 9 }}>
+          <span>
+            <div className="day-card-name" style={{ fontSize: 16 }}>{a.name}</div>
+            <div className="day-card-sub">{dayName(a.dayId)}</div>
+          </span>
+          <button className="btn btn-accent" onClick={() => unarchiveExercise(a.id!)}>
+            Restore
+          </button>
+        </div>
+      ))}
+    </Sheet>
+  )
+}
+
 function FlipSignSheet({ onClose }: { onClose: () => void }) {
-  const exerciseKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+  const allKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const repsKeys = new Set(
+    exerciseKinds.filter((k) => k.kind === 'reps').map((k) => k.exerciseKey),
+  )
+  const exerciseKeys = allKeys.filter((key) => !repsKeys.has(key))
   const [confirming, setConfirming] = useState<string | null>(null)
 
   return (

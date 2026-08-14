@@ -7,11 +7,14 @@ import {
   deleteTodayLog,
   addCustomExercise,
   removeCustomExercise,
+  archiveExercise,
   setSetting,
   todayISO,
   isWeightStagnant,
   type Unit,
   type WorkoutLog,
+  type EntryMode,
+  type MetricKind,
 } from '../db/db'
 import { Sheet } from '../components/Sheet'
 import { relativeDate, num } from '../util/format'
@@ -65,6 +68,16 @@ export function Checklist({
 
   // All logs: used for cross-day prior weight lookups
   const allLogs = useLiveQuery(() => db.logs.toArray(), []) ?? []
+
+  const exerciseKinds = useLiveQuery(() => db.exerciseKinds.toArray(), []) ?? []
+  const kindFor = (name: string): MetricKind =>
+    exerciseKinds.find((k) => k.exerciseKey === name)?.kind ?? 'weight'
+
+  // Archived exercises are hidden from the checklist entirely (not just for
+  // today) but keep their logged history — restorable from Settings.
+  const archived =
+    useLiveQuery(() => db.archivedExercises.where('dayId').equals(dayId).toArray(), [dayId]) ?? []
+  const archivedNames = useMemo(() => new Set(archived.map((a) => a.name)), [archived])
 
   const [editing, setEditing] = useState<Item | null>(null)
   const [adding, setAdding] = useState(false)
@@ -128,8 +141,8 @@ export function Checklist({
   const items: Item[] = useMemo(() => {
     const base = (day?.exercises ?? []).map((name) => ({ name }))
     const extra = custom.map((c) => ({ name: c.name, customId: c.id }))
-    return [...base, ...extra]
-  }, [day, custom])
+    return [...base, ...extra].filter((it) => !archivedNames.has(it.name))
+  }, [day, custom, archivedNames])
 
   const dayLogsFor = (name: string) => dayLogs.filter((l) => l.exerciseKey === name)
   const allLogsFor = (name: string) => allLogs.filter((l) => l.exerciseKey === name)
@@ -213,6 +226,8 @@ export function Checklist({
         const isDismissing = dismissing === it.name
         const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
         const showNudge = nudgeEnabled && !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
+        const kind = kindFor(it.name)
+        const itemUnit = kind === 'reps' ? 'reps' : unit
 
         return (
           <div
@@ -239,10 +254,10 @@ export function Checklist({
                 <span className="ex-main">
                   <div className="ex-name">{it.name}</div>
                   {t ? (
-                    <div className="ex-today">Today · {num(t.weight)} {unit}</div>
+                    <div className="ex-today">Today · {num(t.weight)} {itemUnit}</div>
                   ) : p ? (
                     <div className={`ex-prior${showNudge ? ' nudge' : ''}`}>
-                      Last: {num(p.weight)} {unit} · {relativeDate(p.date)}
+                      Last: {num(p.weight)} {itemUnit} · {relativeDate(p.date)}
                     </div>
                   ) : (
                     <div className="ex-prior">No history yet</div>
@@ -273,6 +288,7 @@ export function Checklist({
         <LogSheet
           item={editing}
           unit={unit}
+          kind={kindFor(editing.name)}
           dayId={dayId}
           existing={todayLog(editing.name)}
           prior={priorLog(editing.name)}
@@ -290,10 +306,12 @@ export function Checklist({
 const PLATE_WEIGHTS = [45, 35, 25, 10, 5, 2.5]
 const BAR_WEIGHT = 45
 const ADJUSTMENTS = [-5, -2.5, +2.5, +5]
+const REPS_ADJUSTMENTS = [-2, -1, +1, +2]
 
 function LogSheet({
   item,
   unit,
+  kind,
   dayId,
   existing,
   prior,
@@ -301,17 +319,21 @@ function LogSheet({
 }: {
   item: Item
   unit: Unit
+  kind: MetricKind
   dayId: string
   existing?: WorkoutLog
   prior?: WorkoutLog
   onClose: () => void
 }) {
-  const [mode, setMode] = useState<'weight' | 'plates'>('weight')
+  const [mode, setMode] = useState<EntryMode>(existing?.mode ?? prior?.mode ?? 'weight')
   const [val, setVal] = useState(
     existing ? num(existing.weight) : prior ? num(prior.weight) : ''
   )
-  const [counts, setCounts] = useState<Record<number, number>>({})
+  const [counts, setCounts] = useState<Record<number, number>>(
+    existing?.plateCounts ?? prior?.plateCounts ?? {}
+  )
   const inputRef = useRef<HTMLInputElement>(null)
+  const isReps = kind === 'reps'
 
   const adjust = (w: number, delta: number) =>
     setCounts((prev) => ({ ...prev, [w]: Math.max(0, (prev[w] ?? 0) + delta) }))
@@ -334,14 +356,50 @@ function LogSheet({
   const hasPlates = platesPerSide > 0
 
   const save = async () => {
+    if (isReps) {
+      const w = parseFloat(val)
+      if (!isFinite(w)) return
+      await logWeight(item.name, dayId, w)
+      onClose()
+      return
+    }
     const w = mode === 'plates' ? calcWeight : parseFloat(val)
     if (!isFinite(w)) return
-    await logWeight(item.name, dayId, w)
+    await logWeight(item.name, dayId, w, mode, mode === 'plates' ? counts : undefined)
     onClose()
   }
 
   return (
     <Sheet title={item.name} onClose={onClose}>
+      {isReps ? (
+        <>
+          <input
+            ref={inputRef}
+            className="field"
+            type="number"
+            inputMode="numeric"
+            autoFocus
+            placeholder="Reps"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+          />
+          <div className="weight-adjusters">
+            {REPS_ADJUSTMENTS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className="adj-btn"
+                onPointerDown={(e) => { e.preventDefault(); quickAdjust(d) }}
+              >
+                {d > 0 ? '+' : ''}{d}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
       <div className="mode-toggle">
         <button type="button" className={`mode-btn${mode === 'weight' ? ' active' : ''}`} onClick={() => setMode('weight')}>
           Weight
@@ -417,6 +475,8 @@ function LogSheet({
           </div>
         </>
       )}
+        </>
+      )}
 
       <div className="row">
         {existing && (
@@ -430,8 +490,18 @@ function LogSheet({
         </button>
       </div>
 
+      <div style={{ textAlign: 'center', marginTop: 10 }}>
+        <button
+          type="button"
+          className="del-link"
+          onClick={async () => { await archiveExercise(dayId, item.name); onClose() }}
+        >
+          Archive exercise
+        </button>
+      </div>
+
       {item.customId != null && (
-        <div style={{ textAlign: 'center', marginTop: 10 }}>
+        <div style={{ textAlign: 'center', marginTop: 6 }}>
           <button type="button" className="del-link" onClick={async () => { await removeCustomExercise(item.customId!); onClose() }}>
             Remove exercise
           </button>
