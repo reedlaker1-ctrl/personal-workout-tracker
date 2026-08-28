@@ -163,16 +163,21 @@ export function Checklist({
     return Math.max(...priors.map((l) => l.weight))
   }
 
+  // Ordered by the exact sequence exercises were last logged on this day —
+  // log ids increase in creation order, so exercise #1 done today sorts
+  // before #2, and so on, exactly the order they were performed in. Until
+  // re-logged, that same order carries forward as-is into the next session.
+  // Never-logged-today exercises sink to the end (alphabetically among themselves).
   const sortedItems = useMemo(() => {
-    const latestDate = (name: string) => {
-      const dates = dayLogs.filter((l) => l.exerciseKey === name).map((l) => l.date)
-      return dates.length ? [...dates].sort().reverse()[0] : ''
+    const lastLogId = (name: string) => {
+      const ids = dayLogs.filter((l) => l.exerciseKey === name).map((l) => l.id ?? 0)
+      return ids.length ? Math.max(...ids) : Infinity
     }
     return [...items].sort((a, b) => {
-      const ra = latestDate(a.name)
-      const rb = latestDate(b.name)
-      if (ra === rb) return a.name.localeCompare(b.name)
-      return rb > ra ? 1 : -1
+      const ia = lastLogId(a.name)
+      const ib = lastLogId(b.name)
+      if (ia === ib) return a.name.localeCompare(b.name)
+      return ia - ib
     })
   }, [items, dayLogs])
 
