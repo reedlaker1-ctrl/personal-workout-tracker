@@ -228,6 +228,9 @@ button {
 .ex-row.nudge {
   border-color: var(--nudge);
 }
+.ex-row.nudge-stale {
+  border-color: var(--danger);
+}
 .ex-check {
   width: 26px;
   height: 26px;
@@ -266,6 +269,9 @@ button {
 .ex-prior.nudge {
   color: var(--nudge);
   font-weight: 700;
+}
+.ex-prior.nudge-stale {
+  color: var(--danger);
 }
 .ex-today {
   color: var(--good);
@@ -457,6 +463,9 @@ body.sheet-open .screen {
 .metric-card.nudge {
   border-color: var(--nudge);
 }
+.metric-card.nudge-stale {
+  border-color: var(--danger);
+}
 .metric-info {
   flex: 1;
   min-width: 0;
@@ -477,6 +486,9 @@ body.sheet-open .screen {
 .metric-latest.nudge {
   color: var(--nudge);
   font-weight: 700;
+}
+.metric-latest.nudge-stale {
+  color: var(--danger);
 }
 
 .chart-wrap {
