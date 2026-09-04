@@ -10,7 +10,7 @@ import {
   archiveExercise,
   setSetting,
   todayISO,
-  isWeightStagnant,
+  weightStagnancyLevel,
   type Unit,
   type WorkoutLog,
   type EntryMode,
@@ -230,7 +230,10 @@ export function Checklist({
         const isDragging = activeDrag?.name === it.name
         const isDismissing = dismissing === it.name
         const dx = isDragging ? Math.min(0, activeDrag!.dx) : isDismissing ? -window.innerWidth : 0
-        const showNudge = nudgeEnabled && !t && isWeightStagnant(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
+        const nudgeLevel = nudgeEnabled && !t
+          ? weightStagnancyLevel(allLogsFor(it.name), nudgeSessions, nudgeWeeks)
+          : 'none'
+        const nudgeClass = nudgeLevel === 'stale' ? ' nudge nudge-stale' : nudgeLevel === 'plateau' ? ' nudge' : ''
         const kind = kindFor(it.name)
         const itemUnit = kind === 'reps' ? 'reps' : unit
 
@@ -245,7 +248,7 @@ export function Checklist({
             <div className="ex-swipe-inner">
               {isDragging && <div className="ex-skip-bg">Skip</div>}
               <button
-                className={`ex-row${t ? ' done' : ''}${showNudge ? ' nudge' : ''}`}
+                className={`ex-row${t ? ' done' : ''}${nudgeClass}`}
                 style={{
                   transform: `translateX(${dx}px)`,
                   opacity: isDismissing ? 0 : 1,
@@ -261,7 +264,7 @@ export function Checklist({
                   {t ? (
                     <div className="ex-today">Today · {num(t.weight)} {itemUnit}</div>
                   ) : p ? (
-                    <div className={`ex-prior${showNudge ? ' nudge' : ''}`}>
+                    <div className={`ex-prior${nudgeClass}`}>
                       Last: {num(p.weight)} {itemUnit} · {relativeDate(p.date)}
                     </div>
                   ) : (

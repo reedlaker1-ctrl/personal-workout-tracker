@@ -298,15 +298,19 @@ function daysBetween(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000)
 }
 
-/** True once an exercise's most recent weight has held steady for both
- *  `minSessions` sessions and `minWeeks` weeks. Pure function over
- *  already-loaded logs — no highlight state is persisted anywhere. */
-export function isWeightStagnant(
+export type StagnancyLevel = 'none' | 'plateau' | 'stale'
+
+/** How stale an exercise's current same-weight streak is: 'none' below the
+ *  configured thresholds, 'plateau' once both are met, and 'stale' once the
+ *  streak has run for *twice* as many sessions and weeks — a stronger nudge
+ *  that it's really time to push heavier. Pure function over already-loaded
+ *  logs — no highlight state is persisted anywhere. */
+export function weightStagnancyLevel(
   logs: WorkoutLog[],
   minSessions: number,
   minWeeks: number,
-): boolean {
-  if (logs.length < minSessions) return false
+): StagnancyLevel {
+  if (logs.length < minSessions) return 'none'
   const byDate = [...logs].sort((a, b) => (a.date < b.date ? -1 : 1))
 
   const latestWeight = byDate[byDate.length - 1].weight
@@ -314,8 +318,12 @@ export function isWeightStagnant(
   while (streakStart > 0 && byDate[streakStart - 1].weight === latestWeight) streakStart--
   const streak = byDate.slice(streakStart)
 
-  if (streak.length < minSessions) return false
-  return daysBetween(streak[0].date, streak[streak.length - 1].date) >= minWeeks * 7
+  if (streak.length < minSessions) return 'none'
+  const spanDays = daysBetween(streak[0].date, streak[streak.length - 1].date)
+  if (spanDays < minWeeks * 7) return 'none'
+
+  if (streak.length >= minSessions * 2 && spanDays >= minWeeks * 7 * 2) return 'stale'
+  return 'plateau'
 }
 
 // ── Custom exercises ──

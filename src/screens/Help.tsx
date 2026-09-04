@@ -64,8 +64,10 @@ export function Help({ onDone }: Props) {
           If an exercise's weight holds steady for a while, its "Last" weight is highlighted in
           amber as a nudge to try going heavier. It only lights up once you've genuinely
           plateaued — steady for a configurable number of sessions <em>and</em> a configurable
-          number of weeks, whichever takes longer — and clears itself the moment you log a new
-          personal best. Tune the thresholds, or turn it off entirely, in Settings.
+          number of weeks, whichever takes longer. If it's still stuck at twice that long, the
+          highlight turns red as a stronger signal it's time to push heavier. Either color clears
+          itself the moment you log a new personal best. Tune the thresholds, or turn the
+          highlight off entirely, in Settings.
         </p>
       </div>
 

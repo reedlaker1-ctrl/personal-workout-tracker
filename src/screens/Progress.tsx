@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, addMetric, isWeightStagnant, type MetricKind, type Unit } from '../db/db'
+import { db, addMetric, weightStagnancyLevel, type MetricKind, type Unit } from '../db/db'
 import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
@@ -116,18 +116,19 @@ function ExercisesList({
                 .sort((a, b) => (a.date < b.date ? -1 : 1))
               const points = logs.map((l) => ({ date: l.date, value: l.weight }))
               const latest = logs[logs.length - 1]
-              const showNudge = nudgeEnabled && isWeightStagnant(logs, nudgeSessions, nudgeWeeks)
+              const nudgeLevel = nudgeEnabled ? weightStagnancyLevel(logs, nudgeSessions, nudgeWeeks) : 'none'
+              const nudgeClass = nudgeLevel === 'stale' ? ' nudge nudge-stale' : nudgeLevel === 'plateau' ? ' nudge' : ''
               const exUnit = kindFor(name) === 'reps' ? 'reps' : unit
 
               return (
                 <button
                   key={name}
-                  className={`metric-card${showNudge ? ' nudge' : ''}`}
+                  className={`metric-card${nudgeClass}`}
                   onClick={() => onOpenExercise(name)}
                 >
                   <span className="metric-info">
                     <div className="metric-name">{name}</div>
-                    <div className={`metric-latest${showNudge ? ' nudge' : ''}`}>
+                    <div className={`metric-latest${nudgeClass}`}>
                       {latest
                         ? `${num(latest.weight)} ${exUnit} · ${shortDate(latest.date)}`
                         : 'No logs yet'}
