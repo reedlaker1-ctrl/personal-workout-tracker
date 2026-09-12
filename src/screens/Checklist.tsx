@@ -163,23 +163,27 @@ export function Checklist({
     return Math.max(...priors.map((l) => l.weight))
   }
 
-  // Most-recently-logged exercise floats to (and stays at) the top — log ids
-  // increase in creation order, so checking one off moves it above whatever
-  // hasn't been logged yet. Until re-logged, that same order carries forward
-  // as-is into the next session. Never-logged exercises sink to the end
-  // (alphabetically among themselves).
+  // Exercises checked off today float above everything not done yet today
+  // (in the order they were done today — first one done shows first), and
+  // whatever's left below keeps the exact order from last time this day was
+  // done (again first-done-first, not reversed) until it's redone today.
+  // Never-logged exercises sink to the very end, alphabetically among themselves.
   const sortedItems = useMemo(() => {
+    const isDoneToday = (name: string) => dayLogs.some((l) => l.exerciseKey === name && l.date === today)
     const lastLogId = (name: string) => {
       const ids = dayLogs.filter((l) => l.exerciseKey === name).map((l) => l.id ?? 0)
-      return ids.length ? Math.max(...ids) : -1
+      return ids.length ? Math.max(...ids) : Infinity
     }
     return [...items].sort((a, b) => {
+      const da = isDoneToday(a.name)
+      const db = isDoneToday(b.name)
+      if (da !== db) return da ? -1 : 1
       const ia = lastLogId(a.name)
       const ib = lastLogId(b.name)
       if (ia === ib) return a.name.localeCompare(b.name)
-      return ib - ia
+      return ia - ib
     })
-  }, [items, dayLogs])
+  }, [items, dayLogs, today])
 
   const doneCount = items.filter((it) => !!todayLog(it.name)).length
   const isComplete = doneCount > 0 && doneCount === items.length
