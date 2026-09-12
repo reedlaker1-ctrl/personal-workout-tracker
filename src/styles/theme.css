@@ -956,6 +956,25 @@ body.sheet-open .screen {
   margin: 20px 0 8px;
 }
 
+/* ── Split manager screen ───────────────────────── */
+.split-row-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+.split-active-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  vertical-align: middle;
+}
+
 /* ── Split Setup screen ─────────────────────────── */
 .setup-intro {
   color: var(--text-dim);
@@ -1031,6 +1050,28 @@ body.sheet-open .screen {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.setup-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.setup-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.setup-chip:active {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .setup-note {

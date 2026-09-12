@@ -16,7 +16,7 @@ import { Progress } from './screens/Progress'
 import { MetricDetail } from './screens/MetricDetail'
 import { ExerciseDetail } from './screens/ExerciseDetail'
 import { Settings } from './screens/Settings'
-import { SplitSetup } from './screens/SplitSetup'
+import { SplitManager } from './screens/SplitManager'
 import { Help } from './screens/Help'
 
 function LoadingScreen() {
@@ -33,7 +33,7 @@ export default function App() {
   const [metricId, setMetricId] = useState<number | null>(null)
   const [exerciseKey, setExerciseKey] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [showSetup, setShowSetup] = useState(false)
+  const [showSplitManager, setShowSplitManager] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
 
   const settings = useLiveQuery(() => db.settings.toArray(), [])
@@ -49,23 +49,34 @@ export default function App() {
   )
   const nudgeEnabled = (settings?.find((s) => s.key === 'nudgeEnabled')?.value ?? 'true') === 'true'
 
-  const userSplitJson = settings?.find((s) => s.key === 'userSplit')?.value
-  const activeSplit: Split | null = userSplitJson ? (JSON.parse(userSplitJson) as Split) : null
+  const splitsJson = settings?.find((s) => s.key === 'splits')?.value
+  const allSplits: Split[] = splitsJson ? (JSON.parse(splitsJson) as Split[]) : []
+  const currentSplitId = settings?.find((s) => s.key === 'currentSplitId')?.value
+  const activeSplit: Split | null =
+    allSplits.find((s) => s.id === currentSplitId) ?? allSplits[0] ?? null
 
-  // Seed from the hardcoded split on first launch so the user isn't dropped into an empty app
+  // Seed from the hardcoded split on first launch so the user isn't dropped
+  // into an empty app; migrate a pre-multi-split install's single saved
+  // split forward instead of discarding it.
   useEffect(() => {
     if (settings === undefined) return
-    if (!settings.some((s) => s.key === 'userSplit')) {
-      setSetting('userSplit', JSON.stringify(splits[0]))
-    }
+    if (settings.some((s) => s.key === 'splits')) return
+    const legacyJson = settings.find((s) => s.key === 'userSplit')?.value
+    const initial: Split = legacyJson ? (JSON.parse(legacyJson) as Split) : splits[0]
+    setSetting('splits', JSON.stringify([initial]))
+    setSetting('currentSplitId', initial.id)
   }, [settings])
 
   if (settings === undefined) return <LoadingScreen />
 
-  if (showSetup) {
+  if (showSplitManager) {
     return (
       <div className="app">
-        <SplitSetup initialSplit={activeSplit ?? undefined} onDone={() => setShowSetup(false)} />
+        <SplitManager
+          splits={allSplits}
+          currentSplitId={activeSplit?.id ?? null}
+          onDone={() => setShowSplitManager(false)}
+        />
       </div>
     )
   }
@@ -147,7 +158,7 @@ export default function App() {
           nudgeWeeks={nudgeWeeks}
           nudgeEnabled={nudgeEnabled}
           onClose={() => setShowSettings(false)}
-          onEditSplit={() => { setShowSettings(false); setShowSetup(true) }}
+          onManageSplits={() => { setShowSettings(false); setShowSplitManager(true) }}
           onOpenHelp={() => { setShowSettings(false); setShowHelp(true) }}
         />
       )}
