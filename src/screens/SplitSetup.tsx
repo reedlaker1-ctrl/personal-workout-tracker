@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, saveSplit, renameExerciseKey, getExerciseKeysWithLogs } from '../db/db'
 import type { Split, SplitDay } from '../config/splits'
@@ -43,8 +43,29 @@ export function SplitSetup({ initialSplit, allSplits = [], onSaved, onDone }: Pr
   )
   const [newEx, setNewEx] = useState<Record<string, string>>({})
 
-  const customExercises = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const customExercisesRaw = useLiveQuery(() => db.customExercises.toArray(), [])
+  const customExercises = customExercisesRaw ?? []
   const loggedExerciseKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+
+  // Exercises added on-the-fly from the Workout tab ("+ Add exercise") live in
+  // a separate table, keyed by day, rather than in the split's own exercise
+  // list — so a day edited here wouldn't show them at all, and re-adding one
+  // as a "suggestion" would create a second, duplicate row. Fold any of them
+  // that belong to this split's days into the draft once, on load.
+  const [customExercisesMerged, setCustomExercisesMerged] = useState(!initialSplit)
+  useEffect(() => {
+    if (customExercisesMerged || customExercisesRaw === undefined) return
+    setDays((prev) =>
+      prev.map((d) => {
+        const existingNames = new Set(d.exercises.map((e) => e.name.trim().toLowerCase()))
+        const toAdd = customExercisesRaw
+          .filter((c) => c.dayId === d.id && !existingNames.has(c.name.trim().toLowerCase()))
+          .map((c) => ({ localId: `custom-${c.id}`, originalName: c.name, name: c.name }))
+        return toAdd.length ? { ...d, exercises: [...d.exercises, ...toAdd] } : d
+      })
+    )
+    setCustomExercisesMerged(true)
+  }, [customExercisesRaw, customExercisesMerged])
 
   // Every exercise name known anywhere — other days here, other splits, custom
   // exercises added from the Workout tab, or just logged historically — so
@@ -83,13 +104,14 @@ export function SplitSetup({ initialSplit, allSplits = [], onSaved, onDone }: Pr
   const addExerciseNamed = (dayId: string, name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const localId = `new-${Math.random().toString(36).slice(2, 8)}`
     setDays((prev) =>
-      prev.map((d) =>
-        d.id === dayId
-          ? { ...d, exercises: [...d.exercises, { localId, originalName: '', name: trimmed }] }
-          : d
-      )
+      prev.map((d) => {
+        if (d.id !== dayId) return d
+        const alreadyThere = d.exercises.some((e) => e.name.trim().toLowerCase() === trimmed.toLowerCase())
+        if (alreadyThere) return d
+        const localId = `new-${Math.random().toString(36).slice(2, 8)}`
+        return { ...d, exercises: [...d.exercises, { localId, originalName: '', name: trimmed }] }
+      })
     )
   }
 
@@ -131,6 +153,21 @@ export function SplitSetup({ initialSplit, allSplits = [], onSaved, onDone }: Pr
       }))
     const split: Split = { id: splitId, name: splitName.trim(), days: validDays }
     await saveSplit(split)
+
+    // Any custom exercise now folded into a day's saved list would otherwise
+    // still sit in the customExercises table too, showing up twice on the
+    // Workout tab (once from the split, once as a "custom" row).
+    const redundantCustomIds = customExercises
+      .filter((c) =>
+        validDays.some(
+          (d) => d.id === c.dayId && d.exercises.some((e) => e.toLowerCase() === c.name.trim().toLowerCase()),
+        ),
+      )
+      .map((c) => c.id!)
+    if (redundantCustomIds.length) {
+      await db.customExercises.bulkDelete(redundantCustomIds)
+    }
+
     onSaved?.(split)
     onDone()
   }
