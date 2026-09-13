@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import { DEFAULT_SPLIT_ID } from '../config/splits'
+import type { Split } from '../config/splits'
 
 // ─── Record types stored in IndexedDB (persists across app updates) ──────────
 
@@ -160,8 +160,28 @@ export async function setSetting(key: string, value: string): Promise<void> {
   await db.settings.put({ key, value })
 }
 
-export async function getCurrentSplitId(): Promise<string> {
-  return getSetting('currentSplitId', DEFAULT_SPLIT_ID)
+// ── Splits ──
+// Multiple splits can be saved side by side (e.g. a bulking split and a
+// cutting split) so switching between them is instant and doesn't lose
+// either one's day/exercise config. Exactly one is "current" at a time —
+// that's the one shown in the Workout tab.
+export async function getAllSplits(): Promise<Split[]> {
+  const row = await db.settings.get('splits')
+  return row ? (JSON.parse(row.value) as Split[]) : []
+}
+
+/** Creates or overwrites a split by id within the saved list. */
+export async function saveSplit(split: Split): Promise<void> {
+  const list = await getAllSplits()
+  const idx = list.findIndex((s) => s.id === split.id)
+  if (idx >= 0) list[idx] = split
+  else list.push(split)
+  await setSetting('splits', JSON.stringify(list))
+}
+
+export async function deleteSplit(id: string): Promise<void> {
+  const list = await getAllSplits()
+  await setSetting('splits', JSON.stringify(list.filter((s) => s.id !== id)))
 }
 
 export async function getUnit(): Promise<Unit> {
@@ -382,19 +402,18 @@ export async function deletePhoto(id: number): Promise<void> {
  *  for analysis, so it stays small and readable rather than carrying along
  *  base64 photo data. */
 export async function exportData(): Promise<string> {
-  const [logs, metrics, metricEntries, settings] = await Promise.all([
+  const [logs, metrics, metricEntries, splits, currentSplitId] = await Promise.all([
     db.logs.toArray(),
     db.metrics.toArray(),
     db.metricEntries.toArray(),
-    db.settings.toArray(),
+    getAllSplits(),
+    getSetting('currentSplitId', ''),
   ])
-
-  const userSplitJson = settings.find((s) => s.key === 'userSplit')?.value
-  const split = userSplitJson ? JSON.parse(userSplitJson) : null
 
   const payload = {
     exportDate: todayISO(await getDayRolloverHour()),
-    split,
+    splits,
+    currentSplitId,
     workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
     metrics,
     metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
@@ -406,7 +425,7 @@ export async function exportData(): Promise<string> {
 // ── Backup / restore ──
 // The backup format's shape, bumped whenever a field is added or removed so
 // restoreData() can tell old backups apart from new ones if that's ever needed.
-const BACKUP_FORMAT_VERSION = 1
+const BACKUP_FORMAT_VERSION = 2
 
 function blobToDataURL(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -420,7 +439,11 @@ function blobToDataURL(blob: Blob): Promise<string> {
 interface BackupPayload {
   formatVersion?: number
   exportDate: string
-  split: unknown
+  /** Legacy single-split field, present in backups made before multiple
+   *  splits were supported (formatVersion 1). Restored as a one-item list. */
+  split?: unknown
+  splits?: Split[]
+  currentSplitId?: string
   workoutLogs: WorkoutLog[]
   metrics: Metric[]
   metricEntries: MetricEntry[]
@@ -429,26 +452,25 @@ interface BackupPayload {
 }
 
 /** Everything needed to fully restore the app on a new device: logs,
- *  metrics, custom exercises, the split, and progress photos (inlined as
+ *  metrics, custom exercises, all splits, and progress photos (inlined as
  *  data URLs so the whole backup is a single portable JSON file). Distinct
  *  from exportData(), which stays lean for pasting into an AI chat. */
 export async function exportBackup(): Promise<string> {
-  const [logs, metrics, metricEntries, customExercises, photos, settings] = await Promise.all([
+  const [logs, metrics, metricEntries, customExercises, photos, splits, currentSplitId] = await Promise.all([
     db.logs.toArray(),
     db.metrics.toArray(),
     db.metricEntries.toArray(),
     db.customExercises.toArray(),
     db.photos.toArray(),
-    db.settings.toArray(),
+    getAllSplits(),
+    getSetting('currentSplitId', ''),
   ])
-
-  const userSplitJson = settings.find((s) => s.key === 'userSplit')?.value
-  const split = userSplitJson ? JSON.parse(userSplitJson) : null
 
   const payload: BackupPayload = {
     formatVersion: BACKUP_FORMAT_VERSION,
     exportDate: todayISO(await getDayRolloverHour()),
-    split,
+    splits,
+    currentSplitId,
     workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
     metrics,
     metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
@@ -491,8 +513,16 @@ export async function restoreData(json: string): Promise<void> {
         db.photos.clear(),
       ])
 
-      if (payload.split) {
-        await db.settings.put({ key: 'userSplit', value: JSON.stringify(payload.split) })
+      if (payload.splits?.length) {
+        await db.settings.put({ key: 'splits', value: JSON.stringify(payload.splits) })
+        if (payload.currentSplitId) {
+          await db.settings.put({ key: 'currentSplitId', value: payload.currentSplitId })
+        }
+      } else if (payload.split) {
+        // Legacy (formatVersion 1) backup with a single split.
+        await db.settings.put({ key: 'splits', value: JSON.stringify([payload.split]) })
+        const legacySplit = payload.split as Split
+        await db.settings.put({ key: 'currentSplitId', value: legacySplit.id })
       }
 
       if (payload.workoutLogs?.length) {

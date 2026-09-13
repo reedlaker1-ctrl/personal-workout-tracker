@@ -27,7 +27,7 @@ interface Props {
   nudgeWeeks: number
   nudgeEnabled: boolean
   onClose: () => void
-  onEditSplit: () => void
+  onManageSplits: () => void
   onOpenHelp: () => void
 }
 
@@ -47,7 +47,7 @@ export function Settings({
   nudgeWeeks,
   nudgeEnabled,
   onClose,
-  onEditSplit,
+  onManageSplits,
   onOpenHelp,
 }: Props) {
   const [exporting, setExporting] = useState(false)
@@ -137,13 +137,13 @@ export function Settings({
       <button
         className="day-card"
         style={{ marginBottom: 24 }}
-        onClick={() => { onClose(); onEditSplit() }}
+        onClick={() => { onClose(); onManageSplits() }}
       >
         <span>
           <div className="day-card-name">{split?.name ?? 'No split'}</div>
           <div className="day-card-sub">{split ? `${split.days.length} days` : 'Tap to create'}</div>
         </span>
-        <span className="chev" style={{ fontSize: 14, color: 'var(--accent)' }}>Edit</span>
+        <span className="chev" style={{ fontSize: 14, color: 'var(--accent)' }}>Manage</span>
       </button>
 
       <div className="subtle" style={{ marginBottom: 8 }}>Units</div>

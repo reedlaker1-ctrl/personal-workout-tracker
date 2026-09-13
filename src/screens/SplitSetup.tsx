@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { setSetting, renameExerciseKey } from '../db/db'
+import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, saveSplit, renameExerciseKey, getExerciseKeysWithLogs } from '../db/db'
 import type { Split, SplitDay } from '../config/splits'
 
 type ExDraft = { localId: string; originalName: string; name: string }
@@ -12,6 +13,12 @@ interface DayDraft {
 
 interface Props {
   initialSplit?: Split
+  /** All saved splits, used to suggest exercises already used elsewhere
+   *  (other days, other splits) instead of only ones typed here before. */
+  allSplits?: Split[]
+  /** Called with the saved split just before onDone(), e.g. to make a
+   *  newly-created split the active one. */
+  onSaved?: (split: Split) => void
   onDone: () => void
 }
 
@@ -19,8 +26,13 @@ function genId() {
   return `d-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function SplitSetup({ initialSplit, onDone }: Props) {
+function genSplitId() {
+  return `split-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function SplitSetup({ initialSplit, allSplits = [], onSaved, onDone }: Props) {
   const isNew = !initialSplit
+  const [splitId] = useState(initialSplit?.id ?? genSplitId())
   const [splitName, setSplitName] = useState(initialSplit?.name ?? '')
   const [days, setDays] = useState<DayDraft[]>(
     initialSplit?.days.map((d) => ({
@@ -30,6 +42,24 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
     })) ?? []
   )
   const [newEx, setNewEx] = useState<Record<string, string>>({})
+
+  const customExercises = useLiveQuery(() => db.customExercises.toArray(), []) ?? []
+  const loggedExerciseKeys = useLiveQuery(() => getExerciseKeysWithLogs(), []) ?? []
+
+  // Every exercise name known anywhere — other days here, other splits, custom
+  // exercises added from the Workout tab, or just logged historically — so
+  // adding one to a day doesn't mean retyping it from scratch.
+  const knownExerciseNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const s of allSplits) {
+      for (const d of s.days) {
+        for (const ex of d.exercises) names.add(ex)
+      }
+    }
+    for (const c of customExercises) names.add(c.name)
+    for (const k of loggedExerciseKeys) names.add(k)
+    return [...names].sort((a, b) => a.localeCompare(b))
+  }, [allSplits, customExercises, loggedExerciseKeys])
 
   const addDay = () => {
     const id = genId()
@@ -50,17 +80,21 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
       )
     )
 
-  const addExercise = (dayId: string) => {
-    const name = (newEx[dayId] ?? '').trim()
-    if (!name) return
+  const addExerciseNamed = (dayId: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
     const localId = `new-${Math.random().toString(36).slice(2, 8)}`
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
-          ? { ...d, exercises: [...d.exercises, { localId, originalName: '', name }] }
+          ? { ...d, exercises: [...d.exercises, { localId, originalName: '', name: trimmed }] }
           : d
       )
     )
+  }
+
+  const addExercise = (dayId: string) => {
+    addExerciseNamed(dayId, newEx[dayId] ?? '')
     setNewEx((prev) => ({ ...prev, [dayId]: '' }))
   }
 
@@ -95,23 +129,24 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
         name: d.name.trim(),
         exercises: d.exercises.filter((e) => e.name.trim()).map((e) => e.name.trim()),
       }))
-    const split: Split = { id: 'user', name: splitName.trim(), days: validDays }
-    await setSetting('userSplit', JSON.stringify(split))
+    const split: Split = { id: splitId, name: splitName.trim(), days: validDays }
+    await saveSplit(split)
+    onSaved?.(split)
     onDone()
   }
 
   return (
     <div className="screen">
       <div className="screen-header">
-        {!isNew && (
-          <button className="icon-back" onClick={onDone} aria-label="Back">‹</button>
-        )}
-        <h1 className="screen-title">{isNew ? 'Create your split' : 'Edit split'}</h1>
+        <button className="icon-back" onClick={onDone} aria-label="Back">‹</button>
+        <h1 className="screen-title">{isNew ? 'New split' : 'Edit split'}</h1>
       </div>
 
-      {isNew && (
-        <p className="setup-intro">Name your training split and add your days.</p>
-      )}
+      <p className="setup-intro">
+        {isNew
+          ? 'Name your training split and add your days.'
+          : 'Rename days or exercises, or pick from anything you’ve already used elsewhere.'}
+      </p>
 
       <input
         className="field"
@@ -120,75 +155,95 @@ export function SplitSetup({ initialSplit, onDone }: Props) {
         onChange={(e) => setSplitName(e.target.value)}
       />
 
-      {days.map((day, di) => (
-        <div key={day.id} className="setup-day">
-          <div className="setup-day-header">
-            <input
-              className="field setup-day-name"
-              placeholder={`Day ${di + 1} name (e.g. Chest & Back)`}
-              value={day.name}
-              onChange={(e) => updateDayName(day.id, e.target.value)}
-            />
-            <button
-              type="button"
-              className="btn-icon"
-              style={{ color: 'var(--danger)', fontSize: 16 }}
-              onClick={() => removeDay(day.id)}
-            >
-              ✕
-            </button>
-          </div>
+      {days.map((day, di) => {
+        const dayNames = new Set(day.exercises.map((e) => e.name.trim().toLowerCase()))
+        const suggestions = knownExerciseNames.filter((n) => !dayNames.has(n.toLowerCase()))
 
-          {day.exercises.length > 0 && (
-            <div className="setup-ex-list">
-              {day.exercises.map((ex) => (
-                <div key={ex.localId} className="setup-ex-row">
-                  <input
-                    className="setup-ex-input"
-                    value={ex.name}
-                    placeholder="Exercise name"
-                    onChange={(e) => updateExerciseName(day.id, ex.localId, e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    style={{ fontSize: 14, padding: '4px 0 4px 10px' }}
-                    onClick={() => removeExercise(day.id, ex.localId)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+        return (
+          <div key={day.id} className="setup-day">
+            <div className="setup-day-header">
+              <input
+                className="field setup-day-name"
+                placeholder={`Day ${di + 1} name (e.g. Chest & Back)`}
+                value={day.name}
+                onChange={(e) => updateDayName(day.id, e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ color: 'var(--danger)', fontSize: 16 }}
+                onClick={() => removeDay(day.id)}
+              >
+                ✕
+              </button>
             </div>
-          )}
 
-          <div className="setup-add-row">
-            <input
-              className="field"
-              style={{ marginBottom: 0, flex: 1 }}
-              placeholder="Add exercise…"
-              value={newEx[day.id] ?? ''}
-              onChange={(e) => setNewEx((prev) => ({ ...prev, [day.id]: e.target.value }))}
-              onKeyDown={(e) => e.key === 'Enter' && addExercise(day.id)}
-            />
-            <button
-              type="button"
-              className="btn"
-              style={{ flex: 'none', padding: '14px 18px' }}
-              onClick={() => addExercise(day.id)}
-            >
-              +
-            </button>
+            {day.exercises.length > 0 && (
+              <div className="setup-ex-list">
+                {day.exercises.map((ex) => (
+                  <div key={ex.localId} className="setup-ex-row">
+                    <input
+                      className="setup-ex-input"
+                      value={ex.name}
+                      placeholder="Exercise name"
+                      onChange={(e) => updateExerciseName(day.id, ex.localId, e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      style={{ fontSize: 14, padding: '4px 0 4px 10px' }}
+                      onClick={() => removeExercise(day.id, ex.localId)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="setup-add-row">
+              <input
+                className="field"
+                style={{ marginBottom: 0, flex: 1 }}
+                placeholder="Add exercise…"
+                value={newEx[day.id] ?? ''}
+                onChange={(e) => setNewEx((prev) => ({ ...prev, [day.id]: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && addExercise(day.id)}
+              />
+              <button
+                type="button"
+                className="btn"
+                style={{ flex: 'none', padding: '14px 18px' }}
+                onClick={() => addExercise(day.id)}
+              >
+                +
+              </button>
+            </div>
+
+            {suggestions.length > 0 && (
+              <div className="setup-suggestions">
+                {suggestions.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="setup-chip"
+                    onClick={() => addExerciseNamed(day.id, name)}
+                  >
+                    + {name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       <button type="button" className="btn btn-ghost btn-full" style={{ marginBottom: 12 }} onClick={addDay}>
         + Add day
       </button>
 
       <button type="button" className="btn btn-accent btn-full" onClick={save} style={{ opacity: canSave ? 1 : 0.4 }}>
-        {isNew ? 'Start tracking' : 'Save changes'}
+        {isNew ? 'Create split' : 'Save changes'}
       </button>
 
       {!isNew && (

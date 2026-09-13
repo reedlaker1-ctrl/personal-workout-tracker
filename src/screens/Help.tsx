@@ -24,8 +24,9 @@ export function Help({ onDone }: Props) {
         <h3>The basics</h3>
         <p>
           Your training is organized as a <strong>split</strong> — a set of days (like "Chest
-          &amp; Back" or "Legs"), each with a list of exercises. Set yours up (or edit it
-          anytime) from Settings.
+          &amp; Back" or "Legs"), each with a list of exercises. You can keep more than one split
+          saved (like a bulking split and a cutting split) and switch which one's active anytime
+          from Settings &gt; Manage.
         </p>
         <ul>
           <li><strong>Workout tab:</strong> pick a day, then tap an exercise to log today's weight.</li>
