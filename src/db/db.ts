@@ -66,6 +66,16 @@ export interface ProgressPhoto {
   caption?: string
 }
 
+// A single weekly nutrition log: your average daily calories/protein over
+// the past week, not a per-meal diary. One entry per date; logging again on
+// the same day overwrites it, same as a workout log.
+export interface NutritionEntry {
+  id?: number
+  date: string // ISO date string
+  calories: number
+  protein: number // grams
+}
+
 // No longer used by the app (the "push heavier" highlight is now computed
 // live from log history instead of persisted per-exercise state), but the
 // table stays declared so any database already upgraded to version 2 still
@@ -88,6 +98,7 @@ class WorkoutDB extends Dexie {
   exerciseNudges!: Table<ExerciseNudge, string>
   exerciseKinds!: Table<ExerciseKind, string>
   archivedExercises!: Table<ArchivedExercise, number>
+  nutritionEntries!: Table<NutritionEntry, number>
 
   constructor() {
     super('workout-app')
@@ -128,6 +139,18 @@ class WorkoutDB extends Dexie {
       exerciseNudges: 'exerciseKey',
       exerciseKinds: 'exerciseKey',
       archivedExercises: '++id, dayId, name',
+    })
+    this.version(5).stores({
+      settings: 'key',
+      customExercises: '++id, dayId',
+      logs: '++id, exerciseKey, dayId, date',
+      metrics: '++id',
+      metricEntries: '++id, metricId, date',
+      photos: '++id, date',
+      exerciseNudges: 'exerciseKey',
+      exerciseKinds: 'exerciseKey',
+      archivedExercises: '++id, dayId, name',
+      nutritionEntries: '++id, date',
     })
   }
 }
@@ -396,16 +419,34 @@ export async function deletePhoto(id: number): Promise<void> {
   await db.photos.delete(id)
 }
 
+// ── Nutrition ──
+/** Records (or overwrites) today's weekly-average calories/protein entry —
+ *  logging again the same day updates it rather than adding a duplicate. */
+export async function addNutritionEntry(calories: number, protein: number): Promise<void> {
+  const today = todayISO(await getDayRolloverHour())
+  const existing = await db.nutritionEntries.where('date').equals(today).first()
+  if (existing?.id != null) {
+    await db.nutritionEntries.update(existing.id, { calories, protein })
+  } else {
+    await db.nutritionEntries.add({ calories, protein, date: today })
+  }
+}
+
+export async function deleteNutritionEntry(id: number): Promise<void> {
+  await db.nutritionEntries.delete(id)
+}
+
 // ── Export ──
 
 /** Logs, metrics, and split — no photos. Meant for pasting into an AI chat
  *  for analysis, so it stays small and readable rather than carrying along
  *  base64 photo data. */
 export async function exportData(): Promise<string> {
-  const [logs, metrics, metricEntries, splits, currentSplitId] = await Promise.all([
+  const [logs, metrics, metricEntries, nutritionEntries, splits, currentSplitId] = await Promise.all([
     db.logs.toArray(),
     db.metrics.toArray(),
     db.metricEntries.toArray(),
+    db.nutritionEntries.toArray(),
     getAllSplits(),
     getSetting('currentSplitId', ''),
   ])
@@ -417,6 +458,7 @@ export async function exportData(): Promise<string> {
     workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
     metrics,
     metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    nutritionEntries: [...nutritionEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
   }
 
   return JSON.stringify(payload, null, 2)
@@ -425,7 +467,7 @@ export async function exportData(): Promise<string> {
 // ── Backup / restore ──
 // The backup format's shape, bumped whenever a field is added or removed so
 // restoreData() can tell old backups apart from new ones if that's ever needed.
-const BACKUP_FORMAT_VERSION = 2
+const BACKUP_FORMAT_VERSION = 3
 
 function blobToDataURL(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -447,6 +489,8 @@ interface BackupPayload {
   workoutLogs: WorkoutLog[]
   metrics: Metric[]
   metricEntries: MetricEntry[]
+  /** Absent on backups made before formatVersion 3. */
+  nutritionEntries?: NutritionEntry[]
   customExercises: CustomExercise[]
   photos: { date: string; caption?: string; dataUrl: string }[]
 }
@@ -456,15 +500,17 @@ interface BackupPayload {
  *  data URLs so the whole backup is a single portable JSON file). Distinct
  *  from exportData(), which stays lean for pasting into an AI chat. */
 export async function exportBackup(): Promise<string> {
-  const [logs, metrics, metricEntries, customExercises, photos, splits, currentSplitId] = await Promise.all([
-    db.logs.toArray(),
-    db.metrics.toArray(),
-    db.metricEntries.toArray(),
-    db.customExercises.toArray(),
-    db.photos.toArray(),
-    getAllSplits(),
-    getSetting('currentSplitId', ''),
-  ])
+  const [logs, metrics, metricEntries, nutritionEntries, customExercises, photos, splits, currentSplitId] =
+    await Promise.all([
+      db.logs.toArray(),
+      db.metrics.toArray(),
+      db.metricEntries.toArray(),
+      db.nutritionEntries.toArray(),
+      db.customExercises.toArray(),
+      db.photos.toArray(),
+      getAllSplits(),
+      getSetting('currentSplitId', ''),
+    ])
 
   const payload: BackupPayload = {
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -474,6 +520,7 @@ export async function exportBackup(): Promise<string> {
     workoutLogs: [...logs].sort((a, b) => (a.date < b.date ? -1 : 1)),
     metrics,
     metricEntries: [...metricEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    nutritionEntries: [...nutritionEntries].sort((a, b) => (a.date < b.date ? -1 : 1)),
     customExercises,
     photos: await Promise.all(
       photos.map(async (p) => ({ date: p.date, caption: p.caption, dataUrl: await blobToDataURL(p.blob) })),
@@ -503,12 +550,13 @@ export async function restoreData(json: string): Promise<void> {
 
   await db.transaction(
     'rw',
-    [db.logs, db.metrics, db.metricEntries, db.customExercises, db.photos, db.settings],
+    [db.logs, db.metrics, db.metricEntries, db.nutritionEntries, db.customExercises, db.photos, db.settings],
     async () => {
       await Promise.all([
         db.logs.clear(),
         db.metrics.clear(),
         db.metricEntries.clear(),
+        db.nutritionEntries.clear(),
         db.customExercises.clear(),
         db.photos.clear(),
       ])
@@ -531,6 +579,10 @@ export async function restoreData(json: string): Promise<void> {
 
       if (payload.customExercises?.length) {
         await db.customExercises.bulkAdd(payload.customExercises.map(({ id: _id, ...rest }) => rest))
+      }
+
+      if (payload.nutritionEntries?.length) {
+        await db.nutritionEntries.bulkAdd(payload.nutritionEntries.map(({ id: _id, ...rest }) => rest))
       }
 
       if (payload.metrics?.length) {

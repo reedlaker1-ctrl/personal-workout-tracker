@@ -77,9 +77,11 @@ export function Help({ onDone }: Props) {
         <p>
           Under Progress &gt; Metrics you can track anything else that matters to you —
           bodyweight, a max lift, even a rep count like max consecutive push-ups (choose
-          "Reps" when adding it so it displays without a weight unit). Progress &gt; Photos
-          holds your progress pictures, with a share button for sending a set of them
-          elsewhere.
+          "Reps" when adding it so it displays without a weight unit). Progress &gt; Nutrition
+          logs your average daily calories and protein for the week, charted over time —
+          logging again the same day updates that entry instead of adding a duplicate.
+          Progress &gt; Photos holds your progress pictures, with a share button for sending a
+          set of them elsewhere.
         </p>
       </div>
 

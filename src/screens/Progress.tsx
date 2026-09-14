@@ -5,6 +5,7 @@ import type { Split } from '../config/splits'
 import { Sheet } from '../components/Sheet'
 import { LineChart } from '../components/LineChart'
 import { Photos } from './Photos'
+import { Nutrition } from './Nutrition'
 import { num, shortDate } from '../util/format'
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
   onOpenExercise: (key: string) => void
 }
 
-type Seg = 'exercises' | 'metrics' | 'photos'
+type Seg = 'exercises' | 'metrics' | 'nutrition' | 'photos'
 
 export function Progress({
   unit,
@@ -39,6 +40,7 @@ export function Progress({
       <div className="seg-tabs">
         <button className={`seg-tab${seg === 'exercises' ? ' active' : ''}`} onClick={() => setSeg('exercises')}>Exercises</button>
         <button className={`seg-tab${seg === 'metrics' ? ' active' : ''}`} onClick={() => setSeg('metrics')}>Metrics</button>
+        <button className={`seg-tab${seg === 'nutrition' ? ' active' : ''}`} onClick={() => setSeg('nutrition')}>Nutrition</button>
         <button className={`seg-tab${seg === 'photos' ? ' active' : ''}`} onClick={() => setSeg('photos')}>Photos</button>
       </div>
 
@@ -55,6 +57,7 @@ export function Progress({
       {seg === 'metrics' && (
         <MetricsList unit={unit} onOpenMetric={onOpenMetric} />
       )}
+      {seg === 'nutrition' && <Nutrition />}
       {seg === 'photos' && <Photos />}
     </div>
   )
