@@ -163,25 +163,44 @@ export function Checklist({
     return Math.max(...priors.map((l) => l.weight))
   }
 
-  // Exercises checked off today float above everything not done yet today
-  // (in the order they were done today — first one done shows first), and
-  // whatever's left below keeps the exact order from last time this day was
-  // done (again first-done-first, not reversed) until it's redone today.
-  // Never-logged exercises sink to the very end, alphabetically among themselves.
+  // Three groups, top to bottom: (0) done today, in the order done today;
+  // (1) not done today but done in the actual last session for this day, in
+  // that session's order — this is "first from last time is first today";
+  // (2) everything else — skipped in the last session (or never logged) —
+  // ranked by its own recency so it doesn't jump ahead of (1) just because
+  // its log id happens to be older, with never-logged items (no id at all)
+  // sinking to the very end, alphabetically among themselves.
   const sortedItems = useMemo(() => {
-    const isDoneToday = (name: string) => dayLogs.some((l) => l.exerciseKey === name && l.date === today)
+    const priorDates = dayLogs.filter((l) => l.date < today).map((l) => l.date)
+    const lastSessionDate = priorDates.length ? [...priorDates].sort().reverse()[0] : null
+
+    const idOnDate = (name: string, date: string) => {
+      const ids = dayLogs.filter((l) => l.exerciseKey === name && l.date === date).map((l) => l.id ?? 0)
+      return ids.length ? Math.max(...ids) : null
+    }
     const lastLogId = (name: string) => {
       const ids = dayLogs.filter((l) => l.exerciseKey === name).map((l) => l.id ?? 0)
-      return ids.length ? Math.max(...ids) : Infinity
+      return ids.length ? Math.max(...ids) : null
     }
+
+    const rank = (name: string): { group: 0 | 1 | 2; id: number } => {
+      const todayId = idOnDate(name, today)
+      if (todayId != null) return { group: 0, id: todayId }
+      if (lastSessionDate) {
+        const sessionId = idOnDate(name, lastSessionDate)
+        if (sessionId != null) return { group: 1, id: sessionId }
+      }
+      return { group: 2, id: lastLogId(name) ?? -Infinity }
+    }
+
     return [...items].sort((a, b) => {
-      const da = isDoneToday(a.name)
-      const db = isDoneToday(b.name)
-      if (da !== db) return da ? -1 : 1
-      const ia = lastLogId(a.name)
-      const ib = lastLogId(b.name)
-      if (ia === ib) return a.name.localeCompare(b.name)
-      return ia - ib
+      const ra = rank(a.name)
+      const rb = rank(b.name)
+      if (ra.group !== rb.group) return ra.group - rb.group
+      if (ra.id === rb.id) return a.name.localeCompare(b.name)
+      // Groups 0/1: chronological within that session (earliest first).
+      // Group 2 (stale/never-logged): most-recently-done first.
+      return ra.group === 2 ? rb.id - ra.id : ra.id - rb.id
     })
   }, [items, dayLogs, today])
 
