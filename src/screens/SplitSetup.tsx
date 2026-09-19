@@ -156,8 +156,12 @@ export function SplitSetup({ initialSplit, allSplits = [], onSaved, onDone }: Pr
 
     // Any custom exercise now folded into a day's saved list would otherwise
     // still sit in the customExercises table too, showing up twice on the
-    // Workout tab (once from the split, once as a "custom" row).
-    const redundantCustomIds = customExercises
+    // Workout tab (once from the split, once as a "custom" row). Re-fetch
+    // rather than using the `customExercises` state above — that snapshot
+    // predates the renames just applied, so a just-renamed custom exercise's
+    // old name would never match its day's new exercise list.
+    const freshCustomExercises = await db.customExercises.toArray()
+    const redundantCustomIds = freshCustomExercises
       .filter((c) =>
         validDays.some(
           (d) => d.id === c.dayId && d.exercises.some((e) => e.toLowerCase() === c.name.trim().toLowerCase()),
